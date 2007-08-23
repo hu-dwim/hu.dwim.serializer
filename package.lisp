@@ -21,5 +21,5 @@
 
 (defun transform-function-definer-options (options)
   (if cl-serializer-system:*load-with-debug-p*
-      (remove-keywords options :inline :optimize)
+      (remove-from-plist options :inline :optimize)
       options))

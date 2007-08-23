@@ -6,7 +6,7 @@
 
 (in-package :cl-serializer)
 
-(defun concatenate-symbol (&rest args)
+(def function concatenate-symbol (&rest args)
   "Args are processed as parts of the result symbol with an exception: when a package is encountered then it is stored as the target package at intern."
   (let* ((package nil)
          (symbol-name (string-upcase
@@ -25,13 +25,7 @@
         (intern symbol-name package)
         (intern symbol-name))))
 
-(defun remove-keywords (plist &rest keywords)
-  "Creates a copy of PLIST without the listed KEYWORDS."
-  (declare (optimize (speed 3)))
-  (loop for cell = plist :then (cddr cell)
-        for el = (car cell)
-        while cell
-        unless (member el keywords :test #'eq)
-        collect el
-        and collect (cadr cell)
-        and do (assert (cdr cell) () "Not a proper plist")))
+(def (function io) read-stream-into-vector (stream)
+  ;; TODO:
+  (declare (ignore stream))
+  )
