@@ -212,8 +212,8 @@ length; for circular lists, the length is NIL."
 ;;;;;;;;;;;;;
 ;;; Serialize
 
-(def (function o) serialize (object &key output (has-identity-function #'default-has-identity-function))
-  (let ((context (make-serializer-context :buffer (make-array 256 :element-type '(unsigned-byte 8))
+(def (function o) serialize (object &key output (has-identity-function #'default-has-identity-function) (buffer-size 1024))
+  (let ((context (make-serializer-context :buffer (make-array buffer-size :element-type '(unsigned-byte 8))
                                           :has-identity-function has-identity-function)))
     (write-variable-length-positive-integer +version+ context)
     (serialize-element object context)
