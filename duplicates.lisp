@@ -6,6 +6,11 @@
 
 (in-package :cl-serializer)
 
+(def macro prog1-bind (var ret &body forms)
+  `(bind ((,var ,ret))
+    ,@forms
+    ,var))
+
 (def function concatenate-symbol (&rest args)
   "Args are processed as parts of the result symbol with an exception: when a package is encountered then it is stored as the target package at intern."
   (let* ((package nil)
@@ -26,6 +31,6 @@
         (intern symbol-name))))
 
 (def (function io) read-stream-into-vector (stream)
-  ;; TODO:
   (declare (ignore stream))
+  ;; TODO:
   )

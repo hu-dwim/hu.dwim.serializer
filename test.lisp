@@ -18,41 +18,74 @@
 
 (defsuite* test)
 
-(defclass serialize-test ()
+(defclass standard-object-test ()
   ((slot :initarg :slot :accessor slot-of)))
+
+(defstruct structure-object-test
+  (slot
+   nil
+   :type t))
 
 (defsuite* (test/serialize-deserialize :in test))
 
 (def definer serialize-deserialize-test (name value)
   `(def test ,(serializer::concatenate-symbol *package* "test/serialize-deserialize/" name) ()
-    (is (equal ,value (deserialize (serialize ,value))))))
+    (is (equalp ,value (deserialize (serialize ,value))))))
 
 (def serialize-deserialize-test nil nil)
 
 (def serialize-deserialize-test t t)
+
+(def serialize-deserialize-test symbol/1 'test)
+(def serialize-deserialize-test keyword/1 :test)
+(def serialize-deserialize-test uninterned-symbol/1 '#:a)
+(def serialize-deserialize-test package/1 (find-package :common-lisp))
 
 (def serialize-deserialize-test integer/1 -1)
 (def serialize-deserialize-test integer/2 0)
 (def serialize-deserialize-test integer/3 1)
 (def serialize-deserialize-test integer/4 255)
 (def serialize-deserialize-test integer/5 256)
+(def serialize-deserialize-test integer/6 -256)
+(def serialize-deserialize-test integer/7 -257)
+(def serialize-deserialize-test integer/8 1234567890123456789012345678901234567890)
+(def serialize-deserialize-test integer/9 -1234567890123456789012345678901234567890)
+
+(def serialize-deserialize-test float/1 0.0)
+(def serialize-deserialize-test float/2 1.1)
+(def serialize-deserialize-test float/3 -1.1)
+(def serialize-deserialize-test float/4 111.1d0)
+(def serialize-deserialize-test float/5 -111.1d0)
+
+(def serialize-deserialize-test rational/1 1/2)
+(def serialize-deserialize-test rational/2 -1/2)
+(def serialize-deserialize-test rational/3 1234567890/9876543210)
+(def serialize-deserialize-test rational/4 -1234567890/9876543210)
+
+(def serialize-deserialize-test complex/1 (complex 1.5d0 -0.33d0))
+
+(def serialize-deserialize-test character/1 #\a)
 
 (def serialize-deserialize-test string/1 "")
 (def serialize-deserialize-test string/2 "test")
 (def serialize-deserialize-test string/3 "áéíóúöőüűÁÉÍÓÚÖŐÜŰ")
 
-(def serialize-deserialize-test symbol/1 'test)
+(def serialize-deserialize-test proper-list/1 (list nil t))
+
+(def serialize-deserialize-test dotted-list/1 (cons nil t))
 
 (def serialize-deserialize-test cons/1 (let ((cons (cons nil nil)))
                                          (setf (car cons) cons)
                                          (setf (cdr cons) cons)
                                          cons))
 
-(def serialize-deserialize-test proper-list/1 (list nil t))
+(def serialize-deserialize-test structure-object/1 (make-structure-object-test))
+(def serialize-deserialize-test structure-object/2 (make-structure-object-test :slot 1))
 
-(def serialize-deserialize-test dotted-list/1 (list nil t))
+(def serialize-deserialize-test standard-object/1 (make-instance 'standard-object-test))
+(def serialize-deserialize-test standard-object/2 (make-instance 'standard-object-test :slot 1))
 
-(def serialize-deserialize-test circularity/1 (let ((instance (make-instance 'serialize-test)))
+(def serialize-deserialize-test circularity/1 (let ((instance (make-instance 'standard-object-test)))
                                                 (setf (slot-of instance) instance)
                                                 instance))
 
@@ -61,8 +94,6 @@
 (def function cl-store-serialize (object)
   (flexi-streams:with-output-to-sequence (stream)
     (cl-store:store object stream)))
-
-;; TODO:
 
 (defvar k (with-call/cc
             (print "Hello")

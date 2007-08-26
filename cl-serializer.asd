@@ -34,11 +34,20 @@
 (defclass local-cl-source-file (cl-source-file)
   ())
 
+(defmethod perform :around ((op operation) (component local-cl-source-file))
+  (let ((*readtable* *readtable*)
+        (setup-readtable-function
+         (ignore-errors
+           (fdefinition (read-from-string "cl-serializer::setup-readtable")))))
+    (when setup-readtable-function
+      (funcall setup-readtable-function))
+    (call-next-method)))
+
 (defsystem :cl-serializer
   :version "0.1"
   :description "Object serializer and deserializer"
   :default-component-class local-cl-source-file
-  :depends-on (:cl-def :alexandria :babel)
+  :depends-on (:cl-def :metabang-bind :alexandria :babel)
   :serial t
   :components
   ((:file "package")
