@@ -175,7 +175,7 @@
                (keyword (local-return +keyword-code+ #t))
                (symbol (if (symbol-package object)
                            (local-return +symbol-code+ #t)
-                           (local-return +uninterned-symbol-code+ #f)))
+                           (local-return +uninterned-symbol-code+ #t)))
                (integer (local-return +integer-code+ #f))
                (rational (local-return +rational-code+ #f))
                (float (local-return +float-code+ #f))
@@ -526,7 +526,9 @@ length; for circular lists, the length is NIL."
 
 (def serializer-deserializer uninterned-symbol +uninterned-symbol-code+ symbol
   (write-generic-string (symbol-name object) context)
-  (make-symbol (read-generic-string context)))
+  (let ((position (1- (sc-position context))))
+    (announce-identity (make-symbol (read-generic-string context))
+                       position context)))
 
 (def serializer-deserializer package +package-code+ package
   (write-generic-string (package-name object) context)
