@@ -459,8 +459,8 @@ length; for circular lists, the length is NIL."
   (code-char (read-integer context)))
 
 (def serializer-deserializer base-char +base-char-code+ character
-     (write-unsigned-byte-8 (char-code object) context)
-     (code-char (read-unsigned-byte-8 context)))
+  (write-unsigned-byte-8 (char-code object) context)
+  (code-char (read-unsigned-byte-8 context)))
 
 (def constant +utf-8-mapping+ (babel::lookup-mapping babel::*string-vector-mappings* :utf-8))
 
@@ -478,6 +478,7 @@ length; for circular lists, the length is NIL."
 (def serializer-deserializer simple-string +simple-string-code+ string
   (bind ((length (length object))
          (encoded-length (funcall (the function (babel::octet-counter +utf-8-mapping+)) object 0 length -1)))
+    (declare (type fixnum encoded-length))
     (write-variable-length-positive-integer encoded-length context)
     (bind ((position (sc-position context)))
       (ensure-simple-vector-size (sc-buffer context) (+ 1 position encoded-length))
@@ -486,13 +487,14 @@ length; for circular lists, the length is NIL."
   (bind ((length (read-variable-length-positive-integer context))
          (start (sc-position context))
          (end (the fixnum (+ start length)))
-         (buffer (sc-buffer context)))
-    (bind (((values size new-end)
-            (funcall (the function (babel::code-point-counter +utf-8-mapping+)) buffer start end -1)))
-        (let ((string (make-string size :element-type 'unicode-char)))
-        (funcall (the function (babel::decoder +utf-8-mapping+)) buffer start new-end string 0)
-        (incf (sc-position context) length)
-        string))))
+         (buffer (sc-buffer context))
+         ((values size new-end)
+          (funcall (the function (babel::code-point-counter +utf-8-mapping+)) buffer start end -1))
+         (string (make-string size :element-type 'unicode-char)))
+    (declare (type fixnum length start end))
+    (funcall (the function (babel::decoder +utf-8-mapping+)) buffer start new-end string 0)
+    (incf (sc-position context) length)
+    string))
 
 (def serializer-deserializer generic-string nil string
   (etypecase object
