@@ -139,6 +139,8 @@
    nil
    :type (or null fixnum)))
 
+(def special-variable *deserialize-element-position*)
+
 ;;;;;;;;;
 ;;; Utils
 
@@ -295,25 +297,24 @@ length; for circular lists, the length is NIL."
 
 (def (function o) deserialize-element (context)
   (declare (type serializer-context context))
-  (bind ((code-with-referenced-bit (read-unsigned-byte-8 context))
+  (bind ((*deserialize-element-position* (sc-position context))
+         (code-with-referenced-bit (read-unsigned-byte-8 context))
          (referenced (logbitp +referenced-bit-marker-index+ code-with-referenced-bit))
          (code (logand code-with-referenced-bit +code-mask+)))
     (if (eq code +reference-code+)
-        (bind ((reference-position (sc-position context))
-               (position (read-variable-length-positive-integer context))
+        (bind ((position (read-variable-length-positive-integer context))
                (object
                 (gethash position (position-to-identity-map context) :not-found)))
-          (declare (ignorable reference-position))
-          (format-log "~%Deserializing reference at ~A to object ~S at ~A" (1- reference-position) object position)
+          (format-log "~%Deserializing reference at ~A to object ~S at ~A" *deserialize-element-position* object position)
           (when (eq object :not-found)
             (error "Reference to ~A cannot be resolved, byte at that position is ~A"
                    position (aref (sc-buffer context) position)))
           object)
         (funcall (funcall (sc-mapper context) code context) context referenced))))
 
-(def (function io) announce-identity (object position context)
-  (format-log "~%Storing referenced object ~A seen at ~A" object position)
-  (setf (gethash position (position-to-identity-map context)) object)
+(def (function io) announce-identity (object context)
+  (format-log "~%Storing referenced object ~A seen at ~A" object *deserialize-element-position*)
+  (setf (gethash *deserialize-element-position* (position-to-identity-map context)) object)
   object)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -512,38 +513,29 @@ length; for circular lists, the length is NIL."
 
 (def serializer-deserializer keyword +keyword-code+ keyword
   (write-generic-string (symbol-name object) context)
-  (let ((position (1- (sc-position context))))
-    (announce-identity (intern (read-generic-string context)
-                               :keyword)
-                       position context)))
+  (announce-identity (intern (read-generic-string context) :keyword) context))
 
 (def serializer-deserializer symbol +symbol-code+ symbol
   (progn
     (write-generic-string (symbol-name object) context)
     (serialize-package (symbol-package object) context))
-  (let ((position (1- (sc-position context))))
-    (announce-identity (intern (read-generic-string context)
-                               (deserialize-package context))
-                       position context)))
+  (announce-identity (intern (read-generic-string context)
+                             (deserialize-package context)) context))
 
 (def serializer-deserializer uninterned-symbol +uninterned-symbol-code+ symbol
   (write-generic-string (symbol-name object) context)
-  (let ((position (1- (sc-position context))))
-    (announce-identity (make-symbol (read-generic-string context))
-                       position context)))
+  (announce-identity (make-symbol (read-generic-string context)) context))
 
 (def serializer-deserializer package +package-code+ package
   (write-generic-string (package-name object) context)
-  (let ((position (1- (sc-position context))))
-    (announce-identity (find-package (read-generic-string context))
-                       position context)))
+  (announce-identity (find-package (read-generic-string context)) context))
 
 (def serializer-deserializer cons +cons-code+ cons
   (progn
     (serialize-element (car object) context)
     (serialize-element (cdr object) context))
   (prog1-bind cons (cons nil nil)
-    (announce-identity cons (1- (sc-position context)) context)
+    (announce-identity cons context)
     (setf (car cons) (deserialize-element context))
     (setf (cdr cons) (deserialize-element context))))
 
@@ -583,11 +575,10 @@ length; for circular lists, the length is NIL."
         (if (closer-mop:slot-boundp-using-class class object slot)
             (serialize-element (closer-mop:slot-value-using-class class object slot) context)
             (write-unsigned-byte-8 +unbound-slot-code+ context)))))
-  (bind ((position (1- (sc-position context)))
-         (class-name (deserialize-symbol context))
+  (bind ((class-name (deserialize-symbol context))
          (class (find-class class-name))
          (object (allocate-instance class)))
-    (announce-identity object position context)
+    (announce-identity object context)
     (loop repeat (the fixnum (read-variable-length-positive-integer context))
       for slot-name = (deserialize-symbol context) do
       (if (eq +unbound-slot-code+ (read-unsigned-byte-8 context))

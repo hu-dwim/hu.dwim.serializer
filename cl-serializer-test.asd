@@ -31,7 +31,8 @@
 
 (defsystem :cl-serializer-test
   :description "Tests for cl-perec."
-  :depends-on (:stefil
+  :depends-on (:closer-mop
+               :stefil
                :cl-serializer)
   :default-component-class local-cl-source-file
   :components

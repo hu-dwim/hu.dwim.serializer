@@ -7,7 +7,11 @@
 (defpackage :cl-serializer-test
   (:nicknames :serializer-test)
 
-  (:use :common-lisp :cl-def :stefil :cl-serializer))
+  (:use :common-lisp
+        :closer-mop
+        :cl-def
+        :stefil
+        :cl-serializer))
 
 (in-package :cl-serializer-test)
 
@@ -28,9 +32,57 @@
 
 (defsuite* (test/serialize-deserialize :in test))
 
+(def special-variable *equal-hash-table*)
+
+(defgeneric object-equal-p (object-1 object-2)
+  (:method (object-1 object-2)
+           (equalp object-1 object-2))
+
+  (:method ((object-1 symbol) (object-2 symbol))
+           (or (call-next-method)
+               (and (not (symbol-package object-1))
+                    (not (symbol-package object-2))
+                    (equal (symbol-name object-1)
+                           (symbol-name object-2)))))
+
+  (:method ((object-1 list) (object-2 list))
+           (labels ((equal-aux (x y)
+                      (cond ((eql x y)
+                             t)
+                            ((and (consp x)
+                                  (consp y))
+                             (and (object-equal-p (car x) (car y))
+                                  (object-equal-p (cdr x) (cdr y))))
+                            (t (object-equal-p x y)))))
+             (equal-aux object-1 object-2)))
+
+  (:method ((object-1 structure-object) (object-2 structure-object))
+           (or (eq object-1 object-2)
+               (let ((class-1 (class-of object-1))
+                     (class-2 (class-of object-2)))
+                 (and (eq class-1 class-2)
+                      (every (lambda (slot)
+                               (object-equal-p
+                                (slot-value-using-class class-1 object-1 slot)
+                                (slot-value-using-class class-2 object-2 slot)))
+                             (class-slots class-1))))))
+
+  (:method ((object-1 standard-object) (object-2 standard-object))
+           (or (eq object-1 object-2)
+               (let ((class-1 (class-of object-1))
+                     (class-2 (class-of object-2)))
+                 (and (eq class-1 class-2)
+                      (every (lambda (slot)
+                               (or (and (not (slot-boundp-using-class class-1 object-1 slot))
+                                        (not (slot-boundp-using-class class-2 object-2 slot)))
+                                   (object-equal-p
+                                    (slot-value-using-class class-1 object-1 slot)
+                                    (slot-value-using-class class-2 object-2 slot))))
+                             (class-slots class-1)))))))
+
 (def definer serialize-deserialize-test (name value)
   `(def test ,(serializer::concatenate-symbol *package* "test/serialize-deserialize/" name) ()
-    (is (equalp ,value (deserialize (serialize ,value))))))
+    (is (object-equal-p ,value (deserialize (serialize ,value))))))
 
 (def serialize-deserialize-test nil nil)
 
