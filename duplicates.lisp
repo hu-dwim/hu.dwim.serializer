@@ -30,7 +30,7 @@
         (intern symbol-name package)
         (intern symbol-name))))
 
-(def (function io) read-stream-into-vector (stream)
-  (declare (ignore stream))
-  ;; TODO:
-  )
+(def (function o) read-stream-into-vector (stream)
+  (prog1-bind buffer
+      (make-array (file-length stream) :element-type '(unsigned-byte 8))
+    (read-sequence buffer stream)))
