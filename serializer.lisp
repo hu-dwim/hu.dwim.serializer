@@ -557,7 +557,7 @@ length; for circular lists, the length is NIL."
     (write-variable-length-positive-integer (sc-list-length context) context)
     (dolist (element object)
       (serialize-element element context)))
-  (let ((length (read-unsigned-byte-8 context)))
+  (let ((length (read-variable-length-positive-integer context)))
     (loop for index :from 0 :below length
           collect (deserialize-element context))))
 
