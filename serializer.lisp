@@ -186,6 +186,7 @@
                (character (local-return +character-code+ #f))
                (simple-base-string (local-return +simple-base-string-code+ #f))
                (simple-string (local-return +simple-string-code+ #f))
+               (string (local-return +string-code+ #f))
                (package (local-return +package-code+ #t))
                ((vector (unsigned-byte 8)) (local-return +simple-vector-code+ #t))
                (structure-object (local-return +structure-object-code+ #t))
@@ -497,6 +498,11 @@ length; for circular lists, the length is NIL."
     (incf (sc-position context) length)
     string))
 
+(def serializer-deserializer string +string-code+ string
+  ;; TODO: this is generating garbage on the heap
+  (write-simple-string (coerce object 'simple-string) context)
+  (coerce (read-simple-string context) 'string))
+
 (def serializer-deserializer generic-string nil string
   (etypecase object
     (simple-base-string
@@ -504,12 +510,17 @@ length; for circular lists, the length is NIL."
      (write-simple-base-string object context))
     (simple-string
      (write-unsigned-byte-8 +simple-string-code+ context)
-     (write-simple-string object context)))
+     (write-simple-string object context))
+    (string
+     (write-unsigned-byte-8 +string-code+ context)
+     (write-string object context)))
   (ecase (read-unsigned-byte-8 context)
     (#.+simple-base-string-code+
      (read-simple-base-string context))
     (#.+simple-string-code+
-     (read-simple-string context))))
+     (read-simple-string context))
+    (#.+string-code+
+     (read-string context))))
 
 (def serializer-deserializer keyword +keyword-code+ keyword
   (write-generic-string (symbol-name object) context)
