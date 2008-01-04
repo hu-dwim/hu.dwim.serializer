@@ -199,13 +199,6 @@
 (def (function io) unread-unsigned-byte-8 (context)
   (decf (sc-position context)))
 
-(def macro ensure-simple-vector-size (vector size)
-  `(let ((length (length ,vector)))
-    (when (< length ,size)
-      (let ((new-vector (make-array (max (1+ (* 2 length)) ,size) :element-type '(unsigned-byte 8))))
-        (replace new-vector ,vector)
-        (setf ,vector new-vector)))))
-
 (def (function o) analyze-list (list)
   "Returns two values.  The first value is one of :PROPER-LIST,
 :DOTTED-LIST or :CIRCULAR-LIST.  The second value is the length of
