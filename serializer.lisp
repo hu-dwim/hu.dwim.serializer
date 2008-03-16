@@ -166,7 +166,7 @@
             (t
              (etypecase object
                (cons
-                (bind (((values type length) (analyze-list object)))
+                (bind (((:values type length) (analyze-list object)))
                   (setf (sc-list-length context) length)
                   (cond ((eq type :proper-list)
                          (local-return +proper-list-code+ #f))
@@ -259,7 +259,7 @@ length; for circular lists, the length is NIL."
 
 (def (function o) serialize-element (object context)
   (declare (type serializer-context context))
-  (bind (((values code has-identity writer-function) (funcall (sc-mapper context) object context)))
+  (bind (((:values code has-identity writer-function) (funcall (sc-mapper context) object context)))
       (declare (type fixnum code)
              (type boolean has-identity)
              (type function writer-function))
@@ -425,7 +425,7 @@ length; for circular lists, the length is NIL."
   (/ (read-integer context) (read-integer context)))
 
 (def serializer-deserializer float +float-code+ float
-  (bind (((values significand exponent sign)
+  (bind (((:values significand exponent sign)
           (integer-decode-float object)))
     (write-integer significand context)
     (write-integer exponent context)
@@ -490,7 +490,7 @@ length; for circular lists, the length is NIL."
          (start (sc-position context))
          (end (the fixnum (+ start length)))
          (buffer (sc-buffer context))
-         ((values size new-end)
+         ((:values size new-end)
           (funcall (the function (babel::code-point-counter +utf-8-mapping+)) buffer start end -1))
          (string (make-string size :element-type 'unicode-char)))
     (declare (type fixnum length start end))
