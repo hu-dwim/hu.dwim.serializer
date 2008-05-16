@@ -47,7 +47,12 @@
   :version "0.1"
   :description "Object serializer and deserializer"
   :default-component-class local-cl-source-file
-  :depends-on (:cl-def :metabang-bind :alexandria :babel)
+  :depends-on (:cl-def
+               :metabang-bind
+               :alexandria
+               :babel
+               :closer-mop
+               )
   :serial t
   :components
   ((:file "package")
