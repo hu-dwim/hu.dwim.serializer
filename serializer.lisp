@@ -113,9 +113,13 @@
 ;;;;;;;;;;;;;;;;;;
 ;;; Code -> lambda
 
-(def (constant :test 'equalp) +serializers+ (make-array 128))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (unless (boundp '%serializers%)
+    (def special-variable %serializers% (make-array 128))
+    (def special-variable %deserializers% (make-array 128))))
 
-(def (constant :test 'equalp) +deserializers+ (make-array 128))
+(define-symbol-macro +serializers+ (load-time-value %serializers%))
+(define-symbol-macro +deserializers+ (load-time-value %deserializers%))
 
 ;;;;;;;;;;;
 ;;; Context
@@ -457,7 +461,7 @@ length; for circular lists, the length is NIL."
   (write-unsigned-byte-8 (char-code object) context)
   (code-char (read-unsigned-byte-8 context)))
 
-(def constant +utf-8-mapping+ (babel::lookup-mapping babel::*string-vector-mappings* :utf-8))
+(define-symbol-macro +utf-8-mapping+ (load-time-value (babel::lookup-mapping babel::*string-vector-mappings* :utf-8)))
 
 (def serializer-deserializer simple-base-string +simple-base-string-code+ simple-base-string
   (progn
