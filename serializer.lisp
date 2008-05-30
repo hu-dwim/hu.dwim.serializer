@@ -113,13 +113,9 @@
 ;;;;;;;;;;;;;;;;;;
 ;;; Code -> lambda
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (unless (boundp '%serializers%)
-    (def special-variable %serializers% (make-array 128))
-    (def special-variable %deserializers% (make-array 128))))
+(def load-time-constant +serializers+ (make-array 128))
 
-(define-symbol-macro +serializers+ (load-time-value %serializers%))
-(define-symbol-macro +deserializers+ (load-time-value %deserializers%))
+(def load-time-constant +deserializers+ (make-array 128))
 
 ;;;;;;;;;;;
 ;;; Context
