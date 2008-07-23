@@ -75,15 +75,17 @@
 
 (def constant +vector-code+                      #x41)
 
-(def constant +array-code+                       #x42)
+(def constant +simple-array-code+                #x42)
 
-(def constant +simple-bit-vector-code+           #x43)
+(def constant +array-code+                       #x43)
 
-(def constant +bit-vector-code+                  #x44)
+(def constant +simple-bit-vector-code+           #x44)
 
-(def constant +hash-table-code+                  #x45)
+(def constant +bit-vector-code+                  #x45)
 
-(def constant +pathname-code+                    #x46)
+(def constant +hash-table-code+                  #x46)
+
+(def constant +pathname-code+                    #x47)
 
 ;;;;;;;;;;
 ;;; Object
@@ -112,6 +114,8 @@
 
 ;;;;;;;;;;;;;;;;;;
 ;;; Code -> lambda
+
+(declaim (type (simple-vector 128) +serializers+ +deserializers+))
 
 (def load-time-constant +serializers+ (make-array 128))
 
@@ -188,7 +192,10 @@
                (simple-string (local-return +simple-string-code+ #f))
                (string (local-return +string-code+ #f))
                (package (local-return +package-code+ #t))
-               ((vector (unsigned-byte 8)) (local-return +simple-vector-code+ #t))
+               (simple-vector (local-return +simple-vector-code+ #t))
+               (simple-array (local-return +simple-array-code+ #t))
+               (vector (local-return +vector-code+ #t))
+               (array (local-return +array-code+ #t))
                (structure-object (local-return +structure-object-code+ #t))
                (standard-object (local-return +standard-object-code+ #t))))))))
 
@@ -566,6 +573,42 @@ length; for circular lists, the length is NIL."
          (list (loop repeat (1- length) collect (deserialize-element context))))
     (setf (cdr (last list)) (deserialize-element context))
     list))
+
+(def (function io) %read-array (dimensions adjustable context)
+  (bind ((element-type (deserialize-element context)))
+    (prog1-bind object (make-array dimensions :element-type element-type :adjustable adjustable)
+      (announce-identity object context)
+      (loop for index :from 0 :below (array-total-size object)
+         do (setf (row-major-aref object index) (deserialize-element context))))))
+
+(def (function io) %write-array (object context)
+  (serialize-element (array-element-type object) context)
+  (loop for index :from 0 :below (array-total-size object)
+        do (serialize-element (row-major-aref object index) context)))
+
+(def serializer-deserializer simple-vector +simple-vector-code+ simple-vector
+  (progn
+    (write-variable-length-positive-integer (length object) context)
+    (%write-array object context))
+  (%read-array (read-variable-length-positive-integer context) #f context))
+
+(def serializer-deserializer vector +vector-code+ vector
+  (progn
+    (write-variable-length-positive-integer (length object) context)
+    (%write-array object context))
+  (%read-array (read-variable-length-positive-integer context) #t context))
+
+(def serializer-deserializer simple-array +simple-array-code+ simple-array
+  (progn
+    (serialize-element (array-dimensions object) context)
+    (%write-array object context))
+  (%read-array (deserialize-element context) #f context))
+  
+(def serializer-deserializer array +array-code+ array
+  (progn
+    (serialize-element (array-dimensions object) context)
+    (%write-array object context))
+  (%read-array (deserialize-element context) #t context))
 
 (def serializer-deserializer slot-object nil t
   (bind ((class (class-of object))
