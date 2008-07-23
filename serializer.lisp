@@ -143,6 +143,9 @@
    nil
    :type (or null fixnum)))
 
+(def print-object serializer-context ()
+  (princ (sc-position -self-)))
+
 (def special-variable *deserialize-element-position*)
 
 ;;;;;;;;;
