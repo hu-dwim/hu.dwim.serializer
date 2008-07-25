@@ -73,9 +73,9 @@
 
 (def constant +simple-vector-code+               #x40)
 
-(def constant +vector-code+                      #x41)
+(def constant +simple-array-code+                #x41)
 
-(def constant +simple-array-code+                #x42)
+(def constant +vector-code+                      #x42)
 
 (def constant +array-code+                       #x43)
 
@@ -595,18 +595,18 @@ length; for circular lists, the length is NIL."
     (%write-array object context))
   (%read-array (read-variable-length-positive-integer context) #f context))
 
-(def serializer-deserializer vector +vector-code+ vector
-  (progn
-    (write-variable-length-positive-integer (length object) context)
-    (%write-array object context))
-  (%read-array (read-variable-length-positive-integer context) #t context))
-
 (def serializer-deserializer simple-array +simple-array-code+ simple-array
   (progn
     (serialize-element (array-dimensions object) context)
     (%write-array object context))
   (%read-array (deserialize-element context) #f context))
   
+(def serializer-deserializer vector +vector-code+ vector
+  (progn
+    (write-variable-length-positive-integer (length object) context)
+    (%write-array object context))
+  (%read-array (read-variable-length-positive-integer context) #t context))
+
 (def serializer-deserializer array +array-code+ array
   (progn
     (serialize-element (array-dimensions object) context)
