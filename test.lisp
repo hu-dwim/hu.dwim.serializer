@@ -64,6 +64,16 @@
          (loop for index :from 0 :below (array-total-size object-1)
                always (object-equal-p (row-major-aref object-1 index) (row-major-aref object-2 index)))))
 
+  (:method ((object-1 hash-table) (object-2 hash-table))
+    (and (= (hash-table-count object-1) (hash-table-count object-2))
+         (eq (hash-table-test object-1) (hash-table-test object-2))
+         (block nil
+           (maphash (lambda (key value)
+                      (unless (object-equal-p (gethash key object-2) value)
+                        (return #f)))
+                    object-1)
+           #t)))
+
   (:method ((object-1 structure-object) (object-2 structure-object))
     (or (eq object-1 object-2)
         (let ((class-1 (class-of object-1))
@@ -148,6 +158,11 @@
 (def serialize-deserialize-test simple-array/2 (make-array '(2 2) :element-type '(unsigned-byte 16)))
 
 (def serialize-deserialize-test array/1 (make-array '(2 2) :adjustable #t))
+
+(def serialize-deserialize-test hash-table/1 (let ((object (make-hash-table :test 'eql)))
+                                               (setf (gethash 'a object) "alma")
+                                               (setf (gethash 1 object) 11)
+                                               object))
 
 (def serialize-deserialize-test structure-object/1 (make-structure-object-test))
 (def serialize-deserialize-test structure-object/2 (make-structure-object-test :slot 1))

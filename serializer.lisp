@@ -199,6 +199,7 @@
                (simple-array (local-return +simple-array-code+ #t))
                (vector (local-return +vector-code+ #t))
                (array (local-return +array-code+ #t))
+               (hash-table (local-return +hash-table-code+ #t))
                (structure-object (local-return +structure-object-code+ #t))
                (standard-object (local-return +standard-object-code+ #t))))))))
 
@@ -612,6 +613,18 @@ length; for circular lists, the length is NIL."
     (serialize-element (array-dimensions object) context)
     (%write-array object context))
   (%read-array (deserialize-element context) #t context))
+
+(def serializer-deserializer hash-table +hash-table-code+ hash-table
+  (progn
+    (write-symbol (hash-table-test object) context)
+    (write-variable-length-positive-integer (the fixnum (hash-table-count object)) context)
+    (maphash (lambda (key value)
+               (serialize-element key context)
+               (serialize-element value context))
+             object))
+  (prog1-bind object (make-hash-table :test (read-symbol context))
+    (loop repeat (the fixnum (read-variable-length-positive-integer context))
+       do (setf (gethash (deserialize-element context) object) (deserialize-element context)))))
 
 (def serializer-deserializer slot-object nil t
   (bind ((class (class-of object))
