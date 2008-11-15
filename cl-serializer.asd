@@ -62,7 +62,7 @@
 (defmethod perform ((op test-op) (system (eql (find-system :cl-serializer))))
   (operate 'load-op :cl-serializer-test)
   (in-package :cl-serializer-test)
-  (eval (read-from-string "(stefil:funcall-test-with-feedback-message 'retest)")))
+  (eval (read-from-string "(stefil:funcall-test-with-feedback-message 'test)")))
 
 (defmethod operation-done-p ((op test-op) (system (eql (find-system :cl-serializer))))
   nil)
