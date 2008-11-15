@@ -18,9 +18,7 @@
 ;;;;;;;;
 ;;; Test
 
-(in-root-suite)
-
-(defsuite* test)
+(defsuite* (test :in root-suite))
 
 (defclass standard-object-test ()
   ((slot :initarg :slot :accessor slot-of)))
