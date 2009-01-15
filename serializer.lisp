@@ -87,6 +87,8 @@
 
 (def constant +pathname-code+                    #x47)
 
+(def constant +simple-unsigned-byte-8-vector-code+ #x48)
+
 ;;;;;;;;;;
 ;;; Object
 
@@ -151,6 +153,9 @@
 ;;;;;;;;;
 ;;; Utils
 
+(deftype simple-unsigned-byte-8-vector (&optional (size '*))
+  `(simple-array (unsigned-byte 8) (,size)))
+
 (def (function io) identity-map (context)
   (or (sc-identity-map context)
       (setf (sc-identity-map context)
@@ -195,6 +200,7 @@
                (simple-string (local-return +simple-string-code+ #f))
                (string (local-return +string-code+ #f))
                (package (local-return +package-code+ #t))
+               (simple-unsigned-byte-8-vector (local-return +simple-unsigned-byte-8-vector-code+ #t))
                (simple-vector (local-return +simple-vector-code+ #t))
                (simple-array (local-return +simple-array-code+ #t))
                (vector (local-return +vector-code+ #t))
@@ -445,7 +451,7 @@ length; for circular lists, the length is NIL."
     (write-float (imagpart object) context))
   (complex (read-float context) (read-float context)))
 
-(def serializer-deserializer unsigned-byte-8-vector nil (simple-array (unsigned-byte 8) (*))
+(def serializer-deserializer simple-unsigned-byte-8-vector +simple-unsigned-byte-8-vector-code+ simple-unsigned-byte-8-vector
   (progn
     (write-variable-length-positive-integer (length object) context)
     (loop for octet :across object
