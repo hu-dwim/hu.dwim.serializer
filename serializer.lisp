@@ -168,6 +168,7 @@
   (identity-map context))
 
 (def (function io) default-serializer-mapper (object context)
+  "Returns (values TYPE-CODE HAS-IDENTITY WRITER-FUNCTION), where TYPE-CODE is the (unsigned-byte 8) code that identifies the object's type in the serialized output; HAS-IDENTITY is a boolean telling the engine whether to keep the object's identity through a serialize-deserialize (which is a performance overhead); and WRITER-FUNCTION is called to do the serialization after the type code has been written."
   (the (values fixnum boolean function)
     (flet ((local-return (code identity)
              (values code identity (the function (aref +serializers+ code)))))
@@ -269,10 +270,10 @@ length; for circular lists, the length is NIL."
 
 (def (function o) serialize-element (object context)
   (declare (type serializer-context context))
-  (bind (((:values code has-identity writer-function) (funcall (sc-mapper context) object context)))
-      (declare (type fixnum code)
-             (type boolean has-identity)
-             (type function writer-function))
+  (bind (((:values type-code has-identity writer-function) (funcall (sc-mapper context) object context)))
+    (check-type type-code (unsigned-byte 8))
+    (check-type has-identity boolean)
+    (check-type writer-function function)
     (when has-identity
       (bind ((identity-to-position-map (identity-to-position-map context))
              (position (gethash object identity-to-position-map)))
@@ -286,7 +287,7 @@ length; for circular lists, the length is NIL."
               (write-variable-length-positive-integer position context)
               (return-from serialize-element (values)))
             (setf (gethash object identity-to-position-map) (sc-position context)))))
-    (write-unsigned-byte-8 code context)
+    (write-unsigned-byte-8 type-code context)
     (funcall writer-function object context)
     (values)))
 
@@ -307,7 +308,7 @@ length; for circular lists, the length is NIL."
     (deserialize-element context)))
 
 (def (function o) deserialize-element (context)
-  (declare (type serializer-context context))
+  (check-type context serializer-context)
   (bind ((*deserialize-element-position* (sc-position context))
          (code-with-referenced-bit (read-unsigned-byte-8 context))
          (referenced (logbitp +referenced-bit-marker-index+ code-with-referenced-bit))
@@ -331,14 +332,15 @@ length; for circular lists, the length is NIL."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Serializers and deserializers
 
+;; TODO use -foo- naming convention for non-hygienic macro variables like -object- and -context-
 (def definer serializer-deserializer (name code type serializer-form deserializer-form)
   (let ((writer-name (concatenate-symbol *package* "write-" name))
         (reader-name (concatenate-symbol *package* "read-" name)))
     `(progn
       (def (function io) ,writer-name (object context)
-        (declare (ignorable object context)
-                 (type ,type object)
-                 (type serializer-context context))
+        (declare (ignorable object context))
+        (check-type object ,type)
+        (check-type context serializer-context)
         ,serializer-form
         (values))
       (def (function io) ,reader-name (context &optional referenced)
