@@ -178,15 +178,7 @@
              (local-return +t-code+ #f))
             (t
              (etypecase object
-               (cons
-                (bind (((:values type length) (analyze-list object)))
-                  (setf (sc-list-length context) length)
-                  (cond ((eq type :proper-list)
-                         (local-return +proper-list-code+ #f))
-                        ((eq type :dotted-list)
-                         (local-return +dotted-list-code+ #f))
-                        (t
-                         (local-return +cons-code+ #f)))))
+               (cons (local-return +cons-code+ #t))
                (keyword (local-return +keyword-code+ #t))
                (symbol (if (symbol-package object)
                            (local-return +symbol-code+ #t)
@@ -197,9 +189,9 @@
                (complex (local-return +complex-code+ #f))
                (base-char (local-return +base-char-code+ #f))
                (character (local-return +character-code+ #f))
-               (simple-base-string (local-return +simple-base-string-code+ #f))
-               (simple-string (local-return +simple-string-code+ #f))
-               (string (local-return +string-code+ #f))
+               (simple-base-string (local-return +simple-base-string-code+ #t))
+               (simple-string (local-return +simple-string-code+ #t))
+               (string (local-return +string-code+ #t))
                (package (local-return +package-code+ #t))
                (simple-unsigned-byte-8-vector (local-return +simple-unsigned-byte-8-vector-code+ #t))
                (simple-vector (local-return +simple-vector-code+ #t))
@@ -487,7 +479,7 @@ length; for circular lists, the length is NIL."
          (string (make-array length :element-type 'base-char)))
     (loop for index :from 0 :below length
           do (setf (aref string index) (code-char (read-unsigned-byte-8 context))))
-    string))
+    (announce-identity string context)))
 
 (def serializer-deserializer simple-string +simple-string-code+ string
   (bind ((length (length object))
@@ -508,7 +500,7 @@ length; for circular lists, the length is NIL."
     (declare (type fixnum length start end))
     (funcall (the function (babel::decoder +utf-8-mapping+)) buffer start new-end string 0)
     (incf (sc-position context) length)
-    string))
+    (announce-identity string context)))
 
 (def serializer-deserializer string +string-code+ string
   ;; TODO: this is generating garbage on the heap
