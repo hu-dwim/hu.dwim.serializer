@@ -169,6 +169,7 @@
 
 (def (function io) default-serializer-mapper (object context)
   "Returns (values TYPE-CODE HAS-IDENTITY WRITER-FUNCTION), where TYPE-CODE is the (unsigned-byte 8) code that identifies the object's type in the serialized output; HAS-IDENTITY is a boolean telling the engine whether to keep the object's identity through a serialize-deserialize (which is a performance overhead); and WRITER-FUNCTION is called to do the serialization after the type code has been written."
+  (declare (ignore context))
   (the (values fixnum boolean function)
     (flet ((local-return (code identity)
              (values code identity (the function (aref +serializers+ code)))))
