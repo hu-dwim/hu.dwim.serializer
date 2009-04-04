@@ -98,6 +98,12 @@
 
 (def constant +unbound-slot-code+                #x52)
 
+(def constant +standard-class-code+              #x53)
+
+(def constant +standard-direct-slot-definition-code+ #x54)
+
+(def constant +standard-effective-slot-definition-code+ #x55)
+
 ;;;;;;;;;;;;
 ;;; Reserved
 
@@ -200,6 +206,9 @@
                (vector (local-return +vector-code+ #t))
                (array (local-return +array-code+ #t))
                (hash-table (local-return +hash-table-code+ #t))
+               (standard-class (local-return +standard-class-code+ #t))
+               (closer-mop:standard-direct-slot-definition (local-return +standard-direct-slot-definition-code+ #t))
+               (closer-mop:standard-effective-slot-definition (local-return +standard-effective-slot-definition-code+ #t))
                (structure-object (local-return +structure-object-code+ #t))
                (standard-object (local-return +standard-object-code+ #t))))))))
 
@@ -628,8 +637,11 @@ length; for circular lists, the length is NIL."
        do (setf (gethash (deserialize-element context) object) (deserialize-element context)))))
 
 (def serializer-deserializer slot-object nil t
-  (bind ((class (class-of object))
-         (slots (closer-mop:class-slots class)))
+  (write-slot-object-slots object context (closer-mop:class-slots (class-of object)))
+  (read-slot-object-slots context))
+
+(def (function o) write-slot-object-slots (object context slots)
+  (bind ((class (class-of object)))
     (declare (type list slots))
     (serialize-symbol (class-name class) context)
     (write-variable-length-positive-integer (length slots) context)
@@ -638,19 +650,24 @@ length; for circular lists, the length is NIL."
         (serialize-symbol (closer-mop:slot-definition-name slot) context)
         (if (closer-mop:slot-boundp-using-class class object slot)
             (serialize-element (closer-mop:slot-value-using-class class object slot) context)
-            (write-unsigned-byte-8 +unbound-slot-code+ context)))))
+            (write-unsigned-byte-8 +unbound-slot-code+ context))))))
+
+(def (function o) read-slot-object-slots (context &optional make-instance)
+  (declare (ignore referenced))
   (bind ((class-name (deserialize-symbol context))
          (class (find-class class-name))
-         (object (allocate-instance class)))
+         (object (if make-instance
+                     (make-instance class)
+                     (allocate-instance class))))
     (announce-identity object context)
     (loop repeat (the fixnum (read-variable-length-positive-integer context))
-      for slot-name = (deserialize-symbol context) do
-      (if (eq +unbound-slot-code+ (read-unsigned-byte-8 context))
-          (slot-makunbound object slot-name)
-          (setf (slot-value object slot-name)
-                (progn
-                  (unread-unsigned-byte-8 context)
-                  (deserialize-element context)))))
+       for slot-name = (deserialize-symbol context) do
+       (if (eq +unbound-slot-code+ (read-unsigned-byte-8 context))
+           (slot-makunbound object slot-name)
+           (setf (slot-value object slot-name)
+                 (progn
+                   (unread-unsigned-byte-8 context)
+                   (deserialize-element context)))))
     object))
 
 (def serializer-deserializer structure-object +structure-object-code+ structure-object
@@ -660,3 +677,21 @@ length; for circular lists, the length is NIL."
 (def serializer-deserializer standard-object +standard-object-code+ standard-object
   (write-slot-object object context)
   (read-slot-object context))
+
+(def serializer-deserializer standard-class +standard-class-code+ standard-class
+  (write-symbol (class-name object) context)
+  (announce-identity (find-class (read-symbol context)) context))
+
+(def serializer-deserializer closer-mop:standard-direct-slot-definition +standard-direct-slot-definition-code+ closer-mop:standard-direct-slot-definition
+  (progn
+    #+sbcl(write-symbol (class-name (slot-value object 'sb-pcl::%class)) context)
+    #-sbcl(not-yet-implemented)
+    (write-symbol (closer-mop:slot-definition-name object) context))
+  (announce-identity (find-direct-slot (read-symbol context) (read-symbol context)) context))
+
+(def serializer-deserializer closer-mop:standard-effective-slot-definition +standard-effective-slot-definition-code+ closer-mop:standard-effective-slot-definition
+  (progn
+    #+sbcl(write-symbol (class-name (slot-value object 'sb-pcl::%class)) context)
+    #-sbcl(not-yet-implemented)
+    (write-symbol (closer-mop:slot-definition-name object) context))
+  (announce-identity (find-slot (read-symbol context) (read-symbol context)) context))
