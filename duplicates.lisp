@@ -51,3 +51,28 @@
        finally (return
                  (prog1-bind result-buffer (make-array buffer-pointer :element-type '(unsigned-byte 8))
                    (replace result-buffer buffer :end2 buffer-pointer))))))
+
+(def (function o) find-slot (class-or-name slot-name)
+  (or (find slot-name
+            (the list
+              (closer-mop:class-slots (if (symbolp class-or-name)
+                                          (find-class class-or-name)
+                                          class-or-name)))
+            :key 'closer-mop:slot-definition-name
+            :test 'eq)
+      (error "Cannot find slot ~A in class ~A" slot-name class-or-name)))
+
+(def (function o) find-direct-slot (class-or-name slot-name)
+  (or (find slot-name
+            (the list
+              (closer-mop:class-direct-slots (if (symbolp class-or-name)
+                                                 (find-class class-or-name)
+                                                 class-or-name)))
+            :key 'closer-mop:slot-definition-name
+            :test 'eq)
+      (error "Cannot find slot ~A in class ~A" slot-name class-or-name)))
+
+(def function not-yet-implemented (&optional (datum "Not yet implemented." datum-p) &rest args)
+  (when datum-p
+    (setf datum (concatenate 'string "Not yet implemented: " datum)))
+  (apply #'cerror "Ignore and continue" datum args))
