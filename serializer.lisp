@@ -653,7 +653,6 @@ length; for circular lists, the length is NIL."
             (write-unsigned-byte-8 +unbound-slot-code+ context))))))
 
 (def (function o) read-slot-object-slots (context &optional make-instance)
-  (declare (ignore referenced))
   (bind ((class-name (deserialize-symbol context))
          (class (find-class class-name))
          (object (if make-instance
