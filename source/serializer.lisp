@@ -552,7 +552,16 @@ length; for circular lists, the length is NIL."
 
 (def serializer-deserializer package +package-code+ package
   (write-generic-string (package-name object) context)
-  (announce-identity (find-package (read-generic-string context)) context))
+  (bind ((package-name (read-generic-string context))
+         (package (find-package package-name)))
+    (unless package
+      (restart-case
+          (error "Cannot find package ~S while deserializing" package-name)
+        (use-current-package ()
+          :report (lambda (stream)
+                    (format stream "Return *package* (~A) instead of ~S (not advised, use only when debugging)" *package* package-name))
+          (setf package *package*))))
+    (announce-identity package context)))
 
 (def serializer-deserializer cons +cons-code+ cons
   (progn
