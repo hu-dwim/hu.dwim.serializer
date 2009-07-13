@@ -345,18 +345,18 @@ length; for circular lists, the length is NIL."
         ,serializer-form
         (values))
       (def (function io) ,reader-name (context &optional referenced)
-        (declare (ignorable context referenced)
-                 (type serializer-context context))
+        (declare (ignorable context referenced))
+        (check-type context serializer-context)
         (the ,type
           (values ,deserializer-form)))
       ,@(when code
               `((def (function io) ,(format-symbol *package* "SERIALIZE-~A" name) (object context)
-                  (declare (type ,type object)
-                           (type serializer-context context))
+                  (check-type context serializer-context)
+                  (check-type object ,type)
                   (serialize-element object context)
                   (values))
                 (def (function io) ,(format-symbol *package* "DESERIALIZE-~A" name) (context)
-                  (declare (type serializer-context context))
+                  (check-type context serializer-context)
                   (the ,type
                     (values (deserialize-element context))))
                 (setf (aref +serializers+ ,code) #',writer-name)
