@@ -1,12 +1,12 @@
-;; -*- mode: Lisp; Syntax: Common-Lisp; -*-
+;;; -*- mode: Lisp; Syntax: Common-Lisp; -*-
 ;;;
-;;; Copyright (c) 2006 by the authors.
+;;; Copyright (c) 2009 by the authors.
 ;;;
 ;;; See LICENCE for details.
 
-(in-package :cl-serializer)
+(in-package :hu.dwim.serializer)
 
-;;;;;;;;;;;
+;;;;;;
 ;;; Special
 
 (def constant +nil-code+                         #x00)
@@ -19,7 +19,7 @@
 
 (def constant +dotted-list-code+                 #x04)
 
-;;;;;;;;;;
+;;;;;;
 ;;; String
 
 (def constant +base-char-code+                   #x10)
@@ -36,7 +36,7 @@
 
 (def constant +string-code+                      #x16)
 
-;;;;;;;;;;
+;;;;;;
 ;;; Symbol
 
 (def constant +symbol-code+                      #x20)
@@ -47,7 +47,7 @@
 
 (def constant +package-code+                     #x23)
 
-;;;;;;;;;;
+;;;;;;
 ;;; Number
 
 (def constant +integer-code+                     #x30)
@@ -68,7 +68,7 @@
 
 (def constant +number-code+                      #x38)
 
-;;;;;;;;;;;;
+;;;;;;
 ;;; Compound
 
 (def constant +simple-vector-code+               #x40)
@@ -89,7 +89,7 @@
 
 (def constant +simple-unsigned-byte-8-vector-code+ #x48)
 
-;;;;;;;;;;
+;;;;;;
 ;;; Object
 
 (def constant +structure-object-code+            #x50)
@@ -104,14 +104,14 @@
 
 (def constant +standard-effective-slot-definition-code+ #x55)
 
-;;;;;;;;;;;;
+;;;;;;
 ;;; Reserved
 
 (def constant +first-reserved-code+              #x60)
 
 (def constant +last-reserved-code+               #x6F)
 
-;;;;;;;;;;;;;
+;;;;;;
 ;;; Reference
 
 (def constant +reference-code+                   #x7F)
@@ -120,7 +120,7 @@
 
 (def constant +code-mask+                        #x7F)
 
-;;;;;;;;;;;;;;;;;;
+;;;;;;
 ;;; Code -> lambda
 
 (declaim (type (simple-vector 128) +serializers+ +deserializers+))
@@ -129,7 +129,7 @@
 
 (def load-time-constant +deserializers+ (make-array 128))
 
-;;;;;;;;;;;
+;;;;;;
 ;;; Context
 
 (def constant +version+ 0)
@@ -156,10 +156,10 @@
 
 (def special-variable *deserialize-element-position*)
 
-;;;;;;;;;
-;;; Utils
+;;;;;;
+;;; Util
 
-(deftype simple-unsigned-byte-8-vector (&optional (size '*))
+(def type simple-unsigned-byte-8-vector (&optional (size '*))
   `(simple-array (unsigned-byte 8) (,size)))
 
 (def (function io) identity-map (context)
@@ -249,18 +249,17 @@ length; for circular lists, the length is NIL."
                   (return (values :circular-list 0))))))
 
 (def macro format-log (format-specifier &rest args)
-  (if cl-serializer-system:*load-with-debug-p*
-      `(unless
-        (ignore-errors
-          (format t ,format-specifier ,@args)
-          t)
-        (format t "~%Error during formatting ~S" ,format-specifier))
-      (values)))
+  (declare (ignorable format-specifier args))
+  #+nil
+  `(unless (ignore-errors
+             (format t ,format-specifier ,@args)
+             t)
+     (format t "~%Error during formatting ~S" ,format-specifier)))
 
-;;;;;;;;;;;;;
+;;;;;;
 ;;; Serialize
 
-(def (function o) serialize (object &key (output nil) (buffer-size 1024) (serializer-mapper #'default-serializer-mapper))
+(def (function oe) serialize (object &key (output nil) (buffer-size 1024) (serializer-mapper #'default-serializer-mapper))
   (let ((context (make-serializer-context :buffer (make-array buffer-size :element-type '(unsigned-byte 8))
                                           :mapper serializer-mapper)))
     (write-variable-length-positive-integer +version+ context)
@@ -293,10 +292,10 @@ length; for circular lists, the length is NIL."
     (funcall writer-function object context)
     (values)))
 
-;;;;;;;;;;;;;;;
+;;;;;;
 ;;; Deserialize
 
-(def (function o) deserialize (input &key (deserializer-mapper #'default-deserializer-mapper))
+(def (function oe) deserialize (input &key (deserializer-mapper #'default-deserializer-mapper))
   (let ((context
          (make-serializer-context
           :mapper deserializer-mapper
@@ -331,13 +330,13 @@ length; for circular lists, the length is NIL."
   (setf (gethash *deserialize-element-position* (position-to-identity-map context)) object)
   object)
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;
 ;;; Serializers and deserializers
 
 ;; TODO use -foo- naming convention for non-hygienic macro variables like -object- and -context-
 (def definer serializer-deserializer (name code type serializer-form deserializer-form)
-  (let ((writer-name (concatenate-symbol *package* "write-" name))
-        (reader-name (concatenate-symbol *package* "read-" name)))
+  (let ((writer-name (format-symbol *package* "WRITE-~A" name))
+        (reader-name (format-symbol *package* "READ-~A" name)))
     `(progn
       (def (function io) ,writer-name (object context)
         (declare (ignorable object context))
@@ -351,12 +350,12 @@ length; for circular lists, the length is NIL."
         (the ,type
           (values ,deserializer-form)))
       ,@(when code
-              `((def (function io) ,(concatenate-symbol *package* "serialize-" name) (object context)
+              `((def (function io) ,(format-symbol *package* "SERIALIZE-~A" name) (object context)
                   (declare (type ,type object)
                            (type serializer-context context))
                   (serialize-element object context)
                   (values))
-                (def (function io) ,(concatenate-symbol *package* "deserialize-" name) (context)
+                (def (function io) ,(format-symbol *package* "DESERIALIZE-~A" name) (context)
                   (declare (type serializer-context context))
                   (the ,type
                     (values (deserialize-element context))))

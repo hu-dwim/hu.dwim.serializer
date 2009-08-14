@@ -1,26 +1,15 @@
-;; -*- mode: Lisp; Syntax: Common-Lisp; -*-
+;;; -*- mode: Lisp; Syntax: Common-Lisp; -*-
 ;;;
-;;; Copyright (c) 2006 by the authors.
+;;; Copyright (c) 2009 by the authors.
 ;;;
 ;;; See LICENCE for details.
 
-(defpackage :cl-serializer-test
-  (:nicknames :serializer-test)
+(in-package :hu.dwim.serializer.test)
 
-  (:use :common-lisp
-        :closer-mop
-        :cl-def
-        :stefil
-        :cl-serializer))
-
-(in-package :cl-serializer-test)
-
-;;;;;;;;
+;;;;;;
 ;;; Test
 
-(defsuite* (test :in root-suite))
-
-(defclass standard-object-test ()
+(def class standard-object-test ()
   ((slot :initarg :slot :accessor slot-of)))
 
 (defstruct structure-object-test
@@ -28,11 +17,11 @@
    nil
    :type t))
 
-(defsuite* (test/serialize-deserialize :in test))
+(def suite* (test/serialize-deserialize :in test))
 
 (def special-variable *equal-hash-table*)
 
-(defgeneric object-equal-p (object-1 object-2)
+(def generic object-equal-p (object-1 object-2)
   (:method (object-1 object-2)
     (equalp object-1 object-2))
 
@@ -97,7 +86,7 @@
                       (class-slots class-1)))))))
 
 (def definer serialize-deserialize-test (name value)
-  `(def test ,(serializer::concatenate-symbol *package* "test/serialize-deserialize/" name) ()
+  `(def test ,(format-symbol *package* "TEST/SERIALIZE-DESERIALIZE/~A" name) ()
     (is (object-equal-p ,value (deserialize (serialize ,value))))))
 
 (def serialize-deserialize-test nil nil)
@@ -173,7 +162,6 @@
                                                 instance))
 
 #|
-
 (def function cl-store-serialize (object)
   (flexi-streams:with-output-to-sequence (stream)
     (cl-store:store object stream)))
@@ -187,7 +175,7 @@
  (flexi-streams:with-output-to-sequence (stream)
    (cl-store:store k stream)))
 800
-(cl:time
+(time
  (iter (repeat 1000)
        (flexi-streams:with-input-from-sequence (stream (flexi-streams:with-output-to-sequence (stream)
                                                          (cl-store:store k stream)))
@@ -202,11 +190,9 @@ Evaluation took:
   35,586,656 bytes consed.
 NIL
 
-
-
 (length (serialize k))
 652
-(cl:time
+(time
  (iter (repeat 1000)
        (deserialize (serialize k))))
 Evaluation took:
@@ -219,23 +205,13 @@ Evaluation took:
   11,797,056 bytes consed.
 NIL
 
-
-
-
-
-
-
-
-
-
 (defvar ii '(a (b c) a b (d e (f g (h i)))))
-
 
 (length
  (flexi-streams:with-output-to-sequence (stream)
    (cl-store:store ii stream)))
 158
-(cl:time
+(time
  (iter (repeat 10000)
        (flexi-streams:with-input-from-sequence (stream (flexi-streams:with-output-to-sequence (stream)
                                                          (cl-store:store ii stream)))
@@ -250,10 +226,9 @@ Evaluation took:
   95,359,584 bytes consed.
 NIL
 
-
 (length (serialize ii))
 88
-(cl:time
+(time
  (iter (repeat 10000)
        (deserialize (serialize ii))))
 Evaluation took:
