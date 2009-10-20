@@ -14,7 +14,7 @@
   :licence "BSD / Public domain"
   :description "Generic serializer and deserializer"
   :depends-on (:babel
-               :hu.dwim.common-lisp
+               :hu.dwim.common
                :hu.dwim.def
                :hu.dwim.syntax-sugar
                :hu.dwim.util)
