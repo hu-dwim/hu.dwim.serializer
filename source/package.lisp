@@ -9,7 +9,7 @@
 (defpackage :hu.dwim.serializer
   (:use :babel
         :hu.dwim.asdf
-        :hu.dwim.common-lisp
+        :hu.dwim.common
         :hu.dwim.def
         :hu.dwim.syntax-sugar
         :hu.dwim.util)

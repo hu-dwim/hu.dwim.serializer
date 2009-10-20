@@ -7,7 +7,7 @@
 (in-package :common-lisp-user)
 
 (defpackage :hu.dwim.serializer.test
-  (:use :hu.dwim.common-lisp
+  (:use :hu.dwim.common
         :hu.dwim.def
         :hu.dwim.serializer
         :hu.dwim.stefil
