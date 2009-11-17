@@ -6,9 +6,10 @@
 
 (in-package :common-lisp-user)
 
-(defpackage :hu.dwim.serializer.test
+(hu.dwim.def:def package :hu.dwim.serializer.test
   (:use :hu.dwim.common
         :hu.dwim.def
         :hu.dwim.serializer
         :hu.dwim.stefil
-        :hu.dwim.syntax-sugar))
+        :hu.dwim.syntax-sugar)
+  (:readtable-setup/same-as :hu.dwim.serializer))

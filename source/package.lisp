@@ -6,13 +6,13 @@
 
 (in-package :common-lisp-user)
 
-(defpackage :hu.dwim.serializer
+(hu.dwim.def:def package :hu.dwim.serializer
   (:use :babel
         :hu.dwim.asdf
         :hu.dwim.common
         :hu.dwim.def
-        :hu.dwim.syntax-sugar
         :hu.dwim.util)
-  
   (:shadow #:read-string
-           #:write-string))
+           #:write-string)
+  (:readtable-setup
+   (hu.dwim.syntax-sugar:enable-sharp-boolean-syntax)))

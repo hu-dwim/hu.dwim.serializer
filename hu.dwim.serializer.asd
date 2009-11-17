@@ -15,11 +15,10 @@
   :description "Generic serializer and deserializer"
   :depends-on (:babel
                :hu.dwim.common
-               :hu.dwim.def
+               :hu.dwim.def+hu.dwim.common
                :hu.dwim.syntax-sugar
-               :hu.dwim.util)
+               :hu.dwim.util.mop)
   :components ((:module "source"
                 :components ((:file "package")
                              (:file "duplicates" :depends-on ("package"))
-                             (:file "configuration" :depends-on ("duplicates"))
-                             (:file "serializer" :depends-on ("configuration"))))))
+                             (:file "serializer" :depends-on ("duplicates"))))))
