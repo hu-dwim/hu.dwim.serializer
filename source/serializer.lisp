@@ -702,14 +702,14 @@
 
 (def serializer-deserializer closer-mop:standard-direct-slot-definition +standard-direct-slot-definition-code+ closer-mop:standard-direct-slot-definition
   (progn
-    #+sbcl(write-symbol (class-name (slot-value -object- 'sb-pcl::%class)) -context-)
-    #-sbcl(not-yet-implemented)
+    #*((:sbcl (write-symbol (class-name (slot-value -object- 'sb-pcl::%class)) -context-))
+       (t (not-yet-implemented)))
     (write-symbol (closer-mop:slot-definition-name -object-) -context-))
   (announce-identity (find-direct-slot (read-symbol -context-) (read-symbol -context-)) -context-))
 
 (def serializer-deserializer closer-mop:standard-effective-slot-definition +standard-effective-slot-definition-code+ closer-mop:standard-effective-slot-definition
   (progn
-    #+sbcl(write-symbol (class-name (slot-value -object- 'sb-pcl::%class)) -context-)
-    #-sbcl(not-yet-implemented)
+    #*((:sbcl (write-symbol (class-name (slot-value -object- 'sb-pcl::%class)) -context-))
+       (t (not-yet-implemented)))
     (write-symbol (closer-mop:slot-definition-name -object-) -context-))
   (announce-identity (find-slot (read-symbol -context-) (read-symbol -context-)) -context-))

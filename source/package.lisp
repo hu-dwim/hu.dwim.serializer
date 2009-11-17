@@ -15,4 +15,5 @@
   (:shadow #:read-string
            #:write-string)
   (:readtable-setup
-   (hu.dwim.syntax-sugar:enable-sharp-boolean-syntax)))
+   (hu.dwim.syntax-sugar:enable-sharp-boolean-syntax)
+   (hu.dwim.syntax-sugar:enable-feature-cond-syntax)))
