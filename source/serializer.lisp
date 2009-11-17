@@ -220,33 +220,31 @@
   (decf (sc-position context)))
 
 (def (function o) analyze-list (list)
-  "Returns two values.  The first value is one of :PROPER-LIST,
-:DOTTED-LIST or :CIRCULAR-LIST.  The second value is the length of
-the list.  For dotted lists, the final item is included in the
-length; for circular lists, the length is NIL."
-  ;; This is an adapatation of the algorithm in the Hyperspec
-  ;; (see LIST-LENGTH).
+  "Returns two values.  The first value is of type (member :PROPER-LIST :DOTTED-LIST :CIRCULAR-LIST). The second value is the length of the list. For dotted lists the final item is included in the length. For circular lists the length is NIL."
+  ;; This is an adapatation of the algorithm in the Hyperspec (see LIST-LENGTH).
   (declare (type list list))
-  (loop for n fixnum = 0 :then (the (integer 0 #.(- most-positive-fixnum 2)) (+ n 2))
-        for fast = list :then (cddr fast)
-        for slow = list :then (cdr slow)
-        ;; If fast pointer hits the end, return the count.
-        do (cond ((null fast)
-                  (return (values :proper-list n)))
-                 ((atom fast)
-                  (return (values :dotted-list (the fixnum (1+ n)))))
-                 ((null (cdr fast))
-                  (return (values :proper-list (the fixnum (1+ n)))))
-                 ((atom (cdr fast))
-                  (return (values :dotted-list (the fixnum (+ n 2)))))
-                 ;; If fast pointer eventually equals slow pointer,
-                 ;;  then we must be stuck in a circular list.
-                 ;; (A deeper property is the converse: if we are
-                 ;;  stuck in a circular list, then eventually the
-                 ;;  fast pointer will equal the slow pointer.
-                 ;;  That fact justifies this implementation.)
-                 ((and (eq fast slow) (> n 0))
-                  (return (values :circular-list 0))))))
+  (loop
+    :for n fixnum = 0 :then (the (integer 0 #.(- most-positive-fixnum 2)) (+ n 2))
+    :for fast = list :then (cddr fast)
+    :for slow = list :then (cdr slow)
+    ;; If fast pointer hits the end, return the count.
+    :do (cond
+          ((null fast)
+           (return (values :proper-list n)))
+          ((atom fast)
+           (return (values :dotted-list (the fixnum (1+ n)))))
+          ((null (cdr fast))
+           (return (values :proper-list (the fixnum (1+ n)))))
+          ((atom (cdr fast))
+           (return (values :dotted-list (the fixnum (+ n 2)))))
+          ;; If fast pointer eventually equals slow pointer,
+          ;;  then we must be stuck in a circular list.
+          ;; (A deeper property is the converse: if we are
+          ;;  stuck in a circular list, then eventually the
+          ;;  fast pointer will equal the slow pointer.
+          ;;  That fact justifies this implementation.)
+          ((and (eq fast slow) (> n 0))
+           (return (values :circular-list 0))))))
 
 (def macro format-log (format-specifier &rest args)
   (declare (ignorable format-specifier args))
@@ -260,14 +258,15 @@ length; for circular lists, the length is NIL."
 ;;; Serialize
 
 (def (function oe) serialize (object &key (output nil) (buffer-size 1024) (serializer-mapper #'default-serializer-mapper))
-  (let ((context (make-serializer-context :buffer (make-array buffer-size :element-type '(unsigned-byte 8))
-                                          :mapper serializer-mapper)))
+  (bind ((context (make-serializer-context :buffer (make-array buffer-size :element-type '(unsigned-byte 8))
+                                           :mapper serializer-mapper)))
     (write-variable-length-positive-integer +version+ context)
     (serialize-element object context)
     (etypecase output
       (stream (write-sequence (sc-buffer context) output :end (sc-position context)))
-      (null (prog1-bind final-vector (make-array (sc-position context) :element-type '(unsigned-byte 8))
-              (replace final-vector (sc-buffer context)))))))
+      (null (aprog1
+                (make-array (sc-position context) :element-type '(unsigned-byte 8))
+              (replace it (sc-buffer context)))))))
 
 (def (function o) serialize-element (object context)
   (declare (type serializer-context context))
@@ -296,14 +295,13 @@ length; for circular lists, the length is NIL."
 ;;; Deserialize
 
 (def (function oe) deserialize (input &key (deserializer-mapper #'default-deserializer-mapper))
-  (let ((context
-         (make-serializer-context
-          :mapper deserializer-mapper
-          :buffer (etypecase input
-                    (array
-                     (coerce input '(simple-array (unsigned-byte 8) (*))))
-                    (stream
-                     (read-stream-into-vector input))))))
+  (bind ((context (make-serializer-context
+                   :mapper deserializer-mapper
+                   :buffer (etypecase input
+                             (array
+                              (coerce input '(simple-array (unsigned-byte 8) (*))))
+                             (stream
+                              (read-stream-into-vector input))))))
     (unless (= +version+ (read-variable-length-positive-integer context))
       (error "Serializer version mismatch"))
     (deserialize-element context)))
@@ -316,13 +314,12 @@ length; for circular lists, the length is NIL."
          (code (logand code-with-referenced-bit +code-mask+)))
     (if (eq code +reference-code+)
         (bind ((position (read-variable-length-positive-integer context))
-               (object
-                (gethash position (position-to-identity-map context) :not-found)))
-          (format-log "~%Deserializing reference at ~A to object ~S at ~A" *deserialize-element-position* object position)
-          (when (eq object :not-found)
+               (result (gethash position (position-to-identity-map context) :not-found)))
+          (format-log "~%Deserializing reference at ~A to object ~S at ~A" *deserialize-element-position* result position)
+          (when (eq result :not-found)
             (error "Reference to ~A cannot be resolved, byte at that position is ~A"
                    position (aref (sc-buffer context) position)))
-          object)
+          result)
         (funcall (funcall (sc-mapper context) code context) context referenced))))
 
 (def (function io) announce-identity (object context)
@@ -333,29 +330,28 @@ length; for circular lists, the length is NIL."
 ;;;;;;
 ;;; Serializers and deserializers
 
-;; TODO use -foo- naming convention for non-hygienic macro variables like -object- and -context-
 (def definer serializer-deserializer (name code type serializer-form deserializer-form)
-  (let ((writer-name (format-symbol *package* "WRITE-~A" name))
-        (reader-name (format-symbol *package* "READ-~A" name)))
+  (bind ((writer-name (symbolicate '#:write- name))
+         (reader-name (symbolicate '#:read- name)))
     `(progn
-      (def (function io) ,writer-name (object context)
-        (declare (ignorable object context))
-        (check-type object ,type)
-        (check-type context serializer-context)
+      (def (function io) ,writer-name (-object- -context-)
+        (declare (ignorable -object- -context-))
+        (check-type -object- ,type)
+        (check-type -context- serializer-context)
         ,serializer-form
         (values))
-      (def (function io) ,reader-name (context &optional referenced)
-        (declare (ignorable context referenced))
-        (check-type context serializer-context)
+      (def (function io) ,reader-name (-context- &optional -referenced-)
+        (declare (ignorable -context- -referenced-))
+        (check-type -context- serializer-context)
         (the ,type
           (values ,deserializer-form)))
       ,@(when code
-              `((def (function io) ,(format-symbol *package* "SERIALIZE-~A" name) (object context)
+              `((def (function io) ,(symbolicate '#:serialize- name) (object context)
                   (check-type context serializer-context)
                   (check-type object ,type)
                   (serialize-element object context)
                   (values))
-                (def (function io) ,(format-symbol *package* "DESERIALIZE-~A" name) (context)
+                (def (function io) ,(symbolicate '#:deserialize- name) (context)
                   (check-type context serializer-context)
                   (the ,type
                     (values (deserialize-element context))))
@@ -372,23 +368,23 @@ length; for circular lists, the length is NIL."
 
 (def serializer-deserializer unsigned-byte-8 nil (unsigned-byte 8)
   (progn
-    (ensure-simple-vector-size (sc-buffer context) (the fixnum (1+ (sc-position context))))
-    (setf (aref (sc-buffer context) (1- (the array-index (incf (sc-position context))))) object))
-  (aref (sc-buffer context) (1- (the array-index (incf (sc-position context))))))
+    (ensure-simple-vector-size (sc-buffer -context-) (the fixnum (1+ (sc-position -context-))))
+    (setf (aref (sc-buffer -context-) (1- (the array-index (incf (sc-position -context-))))) -object-))
+  (aref (sc-buffer -context-) (1- (the array-index (incf (sc-position -context-))))))
 
 (def serializer-deserializer unsigned-byte-32 nil (unsigned-byte 32)
   (progn
-    (write-unsigned-byte-8 (ldb (byte 8 24) object) context)
-    (write-unsigned-byte-8 (ldb (byte 8 16) object) context)
-    (write-unsigned-byte-8 (ldb (byte 8 8) object) context)
-    (write-unsigned-byte-8 (ldb (byte 8 0) object) context))
-  (let ((object 0))
-    (declare (type (unsigned-byte 32) object))
-    (setf (ldb (byte 8 24) object) (read-unsigned-byte-8 context))
-    (setf (ldb (byte 8 16) object) (read-unsigned-byte-8 context))
-    (setf (ldb (byte 8 8) object) (read-unsigned-byte-8 context))
-    (setf (ldb (byte 8 0) object) (read-unsigned-byte-8 context))
-    object))
+    (write-unsigned-byte-8 (ldb (byte 8 24) -object-) -context-)
+    (write-unsigned-byte-8 (ldb (byte 8 16) -object-) -context-)
+    (write-unsigned-byte-8 (ldb (byte 8 8) -object-) -context-)
+    (write-unsigned-byte-8 (ldb (byte 8 0) -object-) -context-))
+  (bind ((-object- 0))
+    (declare (type (unsigned-byte 32) -object-))
+    (setf (ldb (byte 8 24) -object-) (read-unsigned-byte-8 -context-))
+    (setf (ldb (byte 8 16) -object-) (read-unsigned-byte-8 -context-))
+    (setf (ldb (byte 8 8) -object-) (read-unsigned-byte-8 -context-))
+    (setf (ldb (byte 8 0) -object-) (read-unsigned-byte-8 -context-))
+    -object-))
 
 (def constant +integer-length-mask+ #x7F)
 
@@ -396,163 +392,168 @@ length; for circular lists, the length is NIL."
 
 ;; TODO: specialize on fixnums
 (def serializer-deserializer integer +integer-code+ integer
-  (bind ((negative (< object 0))
+  (bind ((negative (< -object- 0))
          (integer (if negative
-                      (lognot object)
-                      object))
+                      (lognot -object-)
+                      -object-))
          (length (ceiling (integer-length (abs integer)) 8))
          (length-with-sign-bit length))
     (when negative
       (setf (logbitp +integer-length-sign-bit-index+ length-with-sign-bit) 1))
-    (write-unsigned-byte-8 length-with-sign-bit context)
-    (loop for index :from (- (* 8 length) 8) :downto 0 :by 8
-          do (write-unsigned-byte-8 (ldb (byte 8 index) integer) context)))
-  (bind ((first-byte (read-unsigned-byte-8 context))
+    (write-unsigned-byte-8 length-with-sign-bit -context-)
+    (loop
+      :for index :from (- (* 8 length) 8) :downto 0 :by 8
+      :do (write-unsigned-byte-8 (ldb (byte 8 index) integer) -context-)))
+  (bind ((first-byte (read-unsigned-byte-8 -context-))
          (negative (logbitp +integer-length-sign-bit-index+ first-byte))
          (length (* 8 (logand first-byte +integer-length-mask+))))
-    (let ((object 0))
-      (loop for index :from (- length 8) :downto 0 :by 8
-            do (setf (ldb (byte 8 index) object) (read-unsigned-byte-8 context)))
+    (bind ((result 0))
+      (loop
+        :for index :from (- length 8) :downto 0 :by 8
+        :do (setf (ldb (byte 8 index) result) (read-unsigned-byte-8 -context-)))
       (if negative
-          (lognot object)
-          object))))
+          (lognot result)
+          result))))
 
 (def constant +short-positive-integer+ #x7F)
 
 ;; TODO: specialize on fixnums
 (def serializer-deserializer variable-length-positive-integer nil integer
-  (if (<= object +short-positive-integer+)
-      (write-unsigned-byte-8 object context)
-      (write-integer (- object) context))
-  (let ((first-byte (read-unsigned-byte-8 context)))
+  (if (<= -object- +short-positive-integer+)
+      (write-unsigned-byte-8 -object- -context-)
+      (write-integer (- -object-) -context-))
+  (bind ((first-byte (read-unsigned-byte-8 -context-)))
     (if (logbitp +integer-length-sign-bit-index+ first-byte)
         (progn
-          (unread-unsigned-byte-8 context)
-          (- (the fixnum (read-integer context))))
+          (unread-unsigned-byte-8 -context-)
+          (- (the fixnum (read-integer -context-))))
         first-byte)))
 
 (def serializer-deserializer rational +rational-code+ rational
   (progn
-    (write-integer (numerator object) context)
-    (write-integer (denominator object) context))
-  (/ (read-integer context) (read-integer context)))
+    (write-integer (numerator -object-) -context-)
+    (write-integer (denominator -object-) -context-))
+  (/ (read-integer -context-) (read-integer -context-)))
 
 (def serializer-deserializer float +float-code+ float
   (bind (((:values significand exponent sign)
-          (integer-decode-float object)))
-    (write-integer significand context)
-    (write-integer exponent context)
-    (write-unsigned-byte-8 (1+ sign) context))
-  (bind ((significand (read-integer context))
-         (exponent (read-integer context))
-         (sign (1- (read-unsigned-byte-8 context))))
+          (integer-decode-float -object-)))
+    (write-integer significand -context-)
+    (write-integer exponent -context-)
+    (write-unsigned-byte-8 (1+ sign) -context-))
+  (bind ((significand (read-integer -context-))
+         (exponent (read-integer -context-))
+         (sign (1- (read-unsigned-byte-8 -context-))))
     (* sign (scale-float (float significand 1.0L0) exponent))))
 
 (def serializer-deserializer complex +complex-code+ complex
   (progn
-    (write-float (realpart object) context)
-    (write-float (imagpart object) context))
-  (complex (read-float context) (read-float context)))
+    (write-float (realpart -object-) -context-)
+    (write-float (imagpart -object-) -context-))
+  (complex (read-float -context-) (read-float -context-)))
 
 (def serializer-deserializer simple-unsigned-byte-8-vector +simple-unsigned-byte-8-vector-code+ simple-unsigned-byte-8-vector
   (progn
-    (write-variable-length-positive-integer (length object) context)
-    (loop for octet :across object
-          do (write-unsigned-byte-8 octet context)))
-  (bind ((length (read-variable-length-positive-integer context))
-         (object (make-array length :element-type '(unsigned-byte 8))))
-    (loop for index :from 0 :below length
-          do (setf (aref object index) (read-unsigned-byte-8 context)))
-    object))
+    (write-variable-length-positive-integer (length -object-) -context-)
+    (loop
+      :for octet :across -object-
+      :do (write-unsigned-byte-8 octet -context-)))
+  (bind ((length (read-variable-length-positive-integer -context-))
+         (result (make-array length :element-type '(unsigned-byte 8))))
+    (loop
+      :for index :from 0 :below length
+      :do (setf (aref result index) (read-unsigned-byte-8 -context-)))
+    result))
 
 (def serializer-deserializer character +character-code+ character
-  (write-integer (char-code object) context)
-  (code-char (read-integer context)))
+  (write-integer (char-code -object-) -context-)
+  (code-char (read-integer -context-)))
 
 (def serializer-deserializer extended-char +extended-char-code+ character
-  (write-integer (char-code object) context)
-  (code-char (read-integer context)))
+  (write-integer (char-code -object-) -context-)
+  (code-char (read-integer -context-)))
 
 (def serializer-deserializer base-char +base-char-code+ character
-  (write-unsigned-byte-8 (char-code object) context)
-  (code-char (read-unsigned-byte-8 context)))
+  (write-unsigned-byte-8 (char-code -object-) -context-)
+  (code-char (read-unsigned-byte-8 -context-)))
 
 (define-symbol-macro +utf-8-mapping+ (load-time-value (babel::lookup-mapping babel::*string-vector-mappings* :utf-8)))
 
 (def serializer-deserializer simple-base-string +simple-base-string-code+ simple-base-string
   (progn
-    (write-variable-length-positive-integer (length object) context)
-    (loop for character :across object
-          do (write-unsigned-byte-8 (char-code character) context)))
-  (bind ((length (the fixnum (read-variable-length-positive-integer context)))
+    (write-variable-length-positive-integer (length -object-) -context-)
+    (loop
+      :for character :across -object-
+      :do (write-unsigned-byte-8 (char-code character) -context-)))
+  (bind ((length (the fixnum (read-variable-length-positive-integer -context-)))
          (string (make-array length :element-type 'base-char)))
-    (loop for index :from 0 :below length
-          do (setf (aref string index) (code-char (read-unsigned-byte-8 context))))
-    (announce-identity string context)))
+    (loop
+      :for index :from 0 :below length
+      :do (setf (aref string index) (code-char (read-unsigned-byte-8 -context-))))
+    (announce-identity string -context-)))
 
 (def serializer-deserializer simple-string +simple-string-code+ string
-  (bind ((length (length object))
-         (encoded-length (funcall (the function (babel::octet-counter +utf-8-mapping+)) object 0 length -1)))
+  (bind ((length (length -object-))
+         (encoded-length (funcall (the function (babel::octet-counter +utf-8-mapping+)) -object- 0 length -1)))
     (declare (type fixnum encoded-length))
-    (write-variable-length-positive-integer encoded-length context)
-    (bind ((position (sc-position context)))
-      (ensure-simple-vector-size (sc-buffer context) (+ 1 position encoded-length))
-      (funcall (the function (babel::encoder +utf-8-mapping+)) object 0 length (sc-buffer context) position)
-      (incf (sc-position context) encoded-length)))
-  (bind ((length (read-variable-length-positive-integer context))
-         (start (sc-position context))
+    (write-variable-length-positive-integer encoded-length -context-)
+    (bind ((position (sc-position -context-)))
+      (ensure-simple-vector-size (sc-buffer -context-) (+ 1 position encoded-length))
+      (funcall (the function (babel::encoder +utf-8-mapping+)) -object- 0 length (sc-buffer -context-) position)
+      (incf (sc-position -context-) encoded-length)))
+  (bind ((length (read-variable-length-positive-integer -context-))
+         (start (sc-position -context-))
          (end (the fixnum (+ start length)))
-         (buffer (sc-buffer context))
-         ((:values size new-end)
-          (funcall (the function (babel::code-point-counter +utf-8-mapping+)) buffer start end -1))
+         (buffer (sc-buffer -context-))
+         ((:values size new-end) (funcall (the function (babel::code-point-counter +utf-8-mapping+)) buffer start end -1))
          (string (make-string size :element-type 'unicode-char)))
     (declare (type fixnum length start end))
     (funcall (the function (babel::decoder +utf-8-mapping+)) buffer start new-end string 0)
-    (incf (sc-position context) length)
-    (announce-identity string context)))
+    (incf (sc-position -context-) length)
+    (announce-identity string -context-)))
 
 (def serializer-deserializer string +string-code+ string
   ;; TODO: this is generating garbage on the heap
-  (write-simple-string (coerce object 'simple-string) context)
-  (coerce (read-simple-string context) 'string))
+  (write-simple-string (coerce -object- 'simple-string) -context-)
+  (coerce (read-simple-string -context-) 'string))
 
 (def serializer-deserializer generic-string nil string
-  (etypecase object
+  (etypecase -object-
     (simple-base-string
-     (write-unsigned-byte-8 +simple-base-string-code+ context)
-     (write-simple-base-string object context))
+     (write-unsigned-byte-8 +simple-base-string-code+ -context-)
+     (write-simple-base-string -object- -context-))
     (simple-string
-     (write-unsigned-byte-8 +simple-string-code+ context)
-     (write-simple-string object context))
+     (write-unsigned-byte-8 +simple-string-code+ -context-)
+     (write-simple-string -object- -context-))
     (string
-     (write-unsigned-byte-8 +string-code+ context)
-     (write-string object context)))
-  (ecase (read-unsigned-byte-8 context)
+     (write-unsigned-byte-8 +string-code+ -context-)
+     (write-string -object- -context-)))
+  (ecase (read-unsigned-byte-8 -context-)
     (#.+simple-base-string-code+
-     (read-simple-base-string context))
+     (read-simple-base-string -context-))
     (#.+simple-string-code+
-     (read-simple-string context))
+     (read-simple-string -context-))
     (#.+string-code+
-     (read-string context))))
+     (read-string -context-))))
 
 (def serializer-deserializer keyword +keyword-code+ keyword
-  (write-generic-string (symbol-name object) context)
-  (announce-identity (intern (read-generic-string context) :keyword) context))
+  (write-generic-string (symbol-name -object-) -context-)
+  (announce-identity (intern (read-generic-string -context-) :keyword) -context-))
 
 (def serializer-deserializer symbol +symbol-code+ symbol
   (progn
-    (write-generic-string (symbol-name object) context)
-    (serialize-package (symbol-package object) context))
-  (announce-identity (intern (read-generic-string context)
-                             (deserialize-package context)) context))
+    (write-generic-string (symbol-name -object-) -context-)
+    (serialize-package (symbol-package -object-) -context-))
+  (announce-identity (intern (read-generic-string -context-)
+                             (deserialize-package -context-)) -context-))
 
 (def serializer-deserializer uninterned-symbol +uninterned-symbol-code+ symbol
-  (write-generic-string (symbol-name object) context)
-  (announce-identity (make-symbol (read-generic-string context)) context))
+  (write-generic-string (symbol-name -object-) -context-)
+  (announce-identity (make-symbol (read-generic-string -context-)) -context-))
 
 (def serializer-deserializer package +package-code+ package
-  (write-generic-string (package-name object) context)
-  (bind ((package-name (read-generic-string context))
+  (write-generic-string (package-name -object-) -context-)
+  (bind ((package-name (read-generic-string -context-))
          (package (find-package package-name)))
     (unless package
       (restart-case
@@ -561,92 +562,101 @@ length; for circular lists, the length is NIL."
           :report (lambda (stream)
                     (format stream "Return *package* (~A) instead of ~S (not advised, use only when debugging)" *package* package-name))
           (setf package *package*))))
-    (announce-identity package context)))
+    (announce-identity package -context-)))
 
 (def serializer-deserializer cons +cons-code+ cons
   (progn
-    (serialize-element (car object) context)
-    (serialize-element (cdr object) context))
-  (prog1-bind cons (cons nil nil)
-    (announce-identity cons context)
-    (setf (car cons) (deserialize-element context))
-    (setf (cdr cons) (deserialize-element context))))
+    (serialize-element (car -object-) -context-)
+    (serialize-element (cdr -object-) -context-))
+  (bind ((result (cons nil nil)))
+    (announce-identity result -context-)
+    (setf (car result) (deserialize-element -context-))
+    (setf (cdr result) (deserialize-element -context-))
+    result))
 
 (def serializer-deserializer proper-list +proper-list-code+ list
   (progn
-    (unread-unsigned-byte-8 context)
-    (write-unsigned-byte-8 +proper-list-code+ context)
-    (write-variable-length-positive-integer (sc-list-length context) context)
-    (dolist (element object)
-      (serialize-element element context)))
-  (let ((length (read-variable-length-positive-integer context)))
-    (loop for index :from 0 :below length
-          collect (deserialize-element context))))
+    (unread-unsigned-byte-8 -context-)
+    (write-unsigned-byte-8 +proper-list-code+ -context-)
+    (write-variable-length-positive-integer (sc-list-length -context-) -context-)
+    (dolist (element -object-)
+      (serialize-element element -context-)))
+  (bind ((length (read-variable-length-positive-integer -context-)))
+    (loop
+      :for index :from 0 :below length
+      :collect (deserialize-element -context-))))
 
 (def serializer-deserializer dotted-list +dotted-list-code+ list
   (progn
-    (unread-unsigned-byte-8 context)
-    (write-unsigned-byte-8 +dotted-list-code+ context)
-    (write-variable-length-positive-integer (sc-list-length context) context)
-    (loop for cons :on object
-          do (serialize-element (car cons) context)
-          finally (serialize-element cons context)))
-  (bind ((length (read-variable-length-positive-integer context))
-         (list (loop repeat (1- length) collect (deserialize-element context))))
-    (setf (cdr (last list)) (deserialize-element context))
-    list))
+    (unread-unsigned-byte-8 -context-)
+    (write-unsigned-byte-8 +dotted-list-code+ -context-)
+    (write-variable-length-positive-integer (sc-list-length -context-) -context-)
+    (loop
+      :for cons :on -object-
+      :do (serialize-element (car cons) -context-)
+      :finally (serialize-element cons -context-)))
+  (bind ((length (read-variable-length-positive-integer -context-))
+         (result (loop
+                   :repeat (1- length)
+                   :collect (deserialize-element -context-))))
+    (setf (cdr (last result)) (deserialize-element -context-))
+    result))
 
 (def (function io) %read-array (dimensions adjustable context)
   (bind ((element-type (deserialize-element context)))
-    (prog1-bind object (make-array dimensions :element-type element-type :adjustable adjustable)
-      (announce-identity object context)
-      (loop for index :from 0 :below (array-total-size object)
-         do (setf (row-major-aref object index) (deserialize-element context))))))
+    (bind ((result (make-array dimensions :element-type element-type :adjustable adjustable)))
+      (announce-identity result context)
+      (loop
+        :for index :from 0 :below (array-total-size result)
+        :do (setf (row-major-aref result index) (deserialize-element context))))))
 
 (def (function io) %write-array (object context)
   (serialize-element (array-element-type object) context)
-  (loop for index :from 0 :below (array-total-size object)
-        do (serialize-element (row-major-aref object index) context)))
+  (loop
+    :for index :from 0 :below (array-total-size object)
+    :do (serialize-element (row-major-aref object index) context)))
 
 (def serializer-deserializer simple-vector +simple-vector-code+ simple-vector
   (progn
-    (write-variable-length-positive-integer (length object) context)
-    (%write-array object context))
-  (%read-array (read-variable-length-positive-integer context) #f context))
+    (write-variable-length-positive-integer (length -object-) -context-)
+    (%write-array -object- -context-))
+  (%read-array (read-variable-length-positive-integer -context-) #f -context-))
 
 (def serializer-deserializer simple-array +simple-array-code+ simple-array
   (progn
-    (serialize-element (array-dimensions object) context)
-    (%write-array object context))
-  (%read-array (deserialize-element context) #f context))
+    (serialize-element (array-dimensions -object-) -context-)
+    (%write-array -object- -context-))
+  (%read-array (deserialize-element -context-) #f -context-))
   
 (def serializer-deserializer vector +vector-code+ vector
   (progn
-    (write-variable-length-positive-integer (length object) context)
-    (%write-array object context))
-  (%read-array (read-variable-length-positive-integer context) #t context))
+    (write-variable-length-positive-integer (length -object-) -context-)
+    (%write-array -object- -context-))
+  (%read-array (read-variable-length-positive-integer -context-) #t -context-))
 
 (def serializer-deserializer array +array-code+ array
   (progn
-    (serialize-element (array-dimensions object) context)
-    (%write-array object context))
-  (%read-array (deserialize-element context) #t context))
+    (serialize-element (array-dimensions -object-) -context-)
+    (%write-array -object- -context-))
+  (%read-array (deserialize-element -context-) #t -context-))
 
 (def serializer-deserializer hash-table +hash-table-code+ hash-table
   (progn
-    (write-symbol (hash-table-test object) context)
-    (write-variable-length-positive-integer (the fixnum (hash-table-count object)) context)
+    (write-symbol (hash-table-test -object-) -context-)
+    (write-variable-length-positive-integer (the fixnum (hash-table-count -object-)) -context-)
     (maphash (lambda (key value)
-               (serialize-element key context)
-               (serialize-element value context))
-             object))
-  (prog1-bind object (make-hash-table :test (read-symbol context))
-    (loop repeat (the fixnum (read-variable-length-positive-integer context))
-       do (setf (gethash (deserialize-element context) object) (deserialize-element context)))))
+               (serialize-element key -context-)
+               (serialize-element value -context-))
+             -object-))
+  (bind ((result (make-hash-table :test (read-symbol -context-))))
+    (loop
+      :repeat (the fixnum (read-variable-length-positive-integer -context-))
+      :do (setf (gethash (deserialize-element -context-) result) (deserialize-element -context-)))
+    result))
 
 (def serializer-deserializer slot-object nil t
-  (write-slot-object-slots object context (closer-mop:class-slots (class-of object)))
-  (read-slot-object-slots context))
+  (write-slot-object-slots -object- -context- (closer-mop:class-slots (class-of -object-)))
+  (read-slot-object-slots -context-))
 
 (def (function o) write-slot-object-slots (object context slots)
   (bind ((class (class-of object)))
@@ -667,38 +677,39 @@ length; for circular lists, the length is NIL."
                      (make-instance class)
                      (allocate-instance class))))
     (announce-identity object context)
-    (loop repeat (the fixnum (read-variable-length-positive-integer context))
-       for slot-name = (deserialize-symbol context) do
-       (if (eq +unbound-slot-code+ (read-unsigned-byte-8 context))
-           (slot-makunbound object slot-name)
-           (setf (slot-value object slot-name)
-                 (progn
-                   (unread-unsigned-byte-8 context)
-                   (deserialize-element context)))))
+    (loop
+      :repeat (the fixnum (read-variable-length-positive-integer context))
+      :for slot-name = (deserialize-symbol context)
+      :do (if (eq +unbound-slot-code+ (read-unsigned-byte-8 context))
+              (slot-makunbound object slot-name)
+              (setf (slot-value object slot-name)
+                    (progn
+                      (unread-unsigned-byte-8 context)
+                      (deserialize-element context)))))
     object))
 
 (def serializer-deserializer structure-object +structure-object-code+ structure-object
-  (write-slot-object object context)
-  (read-slot-object context))
+  (write-slot-object -object- -context-)
+  (read-slot-object -context-))
 
 (def serializer-deserializer standard-object +standard-object-code+ standard-object
-  (write-slot-object object context)
-  (read-slot-object context))
+  (write-slot-object -object- -context-)
+  (read-slot-object -context-))
 
 (def serializer-deserializer standard-class +standard-class-code+ standard-class
-  (write-symbol (class-name object) context)
-  (announce-identity (find-class (read-symbol context)) context))
+  (write-symbol (class-name -object-) -context-)
+  (announce-identity (find-class (read-symbol -context-)) -context-))
 
 (def serializer-deserializer closer-mop:standard-direct-slot-definition +standard-direct-slot-definition-code+ closer-mop:standard-direct-slot-definition
   (progn
-    #+sbcl(write-symbol (class-name (slot-value object 'sb-pcl::%class)) context)
+    #+sbcl(write-symbol (class-name (slot-value -object- 'sb-pcl::%class)) -context-)
     #-sbcl(not-yet-implemented)
-    (write-symbol (closer-mop:slot-definition-name object) context))
-  (announce-identity (find-direct-slot (read-symbol context) (read-symbol context)) context))
+    (write-symbol (closer-mop:slot-definition-name -object-) -context-))
+  (announce-identity (find-direct-slot (read-symbol -context-) (read-symbol -context-)) -context-))
 
 (def serializer-deserializer closer-mop:standard-effective-slot-definition +standard-effective-slot-definition-code+ closer-mop:standard-effective-slot-definition
   (progn
-    #+sbcl(write-symbol (class-name (slot-value object 'sb-pcl::%class)) context)
+    #+sbcl(write-symbol (class-name (slot-value -object- 'sb-pcl::%class)) -context-)
     #-sbcl(not-yet-implemented)
-    (write-symbol (closer-mop:slot-definition-name object) context))
-  (announce-identity (find-slot (read-symbol context) (read-symbol context)) context))
+    (write-symbol (closer-mop:slot-definition-name -object-) -context-))
+  (announce-identity (find-slot (read-symbol -context-) (read-symbol -context-)) -context-))
