@@ -173,7 +173,7 @@
 (def (function io) identity-to-position-map (context)
   (identity-map context))
 
-(def (function io) default-serializer-mapper (object context)
+(def (function o) default-serializer-mapper (object context)
   "Returns (values TYPE-CODE HAS-IDENTITY WRITER-FUNCTION), where TYPE-CODE is the (unsigned-byte 8) code that identifies the object's type in the serialized output; HAS-IDENTITY is a boolean telling the engine whether to keep the object's identity through a serialize-deserialize (which is a performance overhead); and WRITER-FUNCTION is called to do the serialization after the type code has been written."
   (declare (ignore context))
   (the (values fixnum boolean function)
@@ -212,7 +212,7 @@
                (structure-object (local-return +structure-object-code+ #t))
                (standard-object (local-return +standard-object-code+ #t))))))))
 
-(def (function io) default-deserializer-mapper (code context)
+(def (function o) default-deserializer-mapper (code context)
   (declare (ignore context))
   (the function (aref +deserializers+ code)))
 
