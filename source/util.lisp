@@ -36,11 +36,17 @@
           ((and (eq fast slow) (> n 0))
            (return (values :circular-list 0))))))
 
-(def macro format-log (format-specifier &rest args)
+(def special-variable *debug-log-enabled* (not *load-as-production?*))
+
+(def macro log.debug (format-specifier &rest args)
   (declare (ignorable format-specifier args))
   (if *load-as-production?*
       (values)
-      `(unless (ignore-errors
-                 (format t ,format-specifier ,@args)
-                 t)
-         (format t "~%Error during formatting ~S" ,format-specifier))))
+      `(when *debug-log-enabled*
+         (unless (ignore-errors
+                   (bind ((*print-length* 10)
+                          (*print-level* 3)
+                          (*print-circle* t))
+                     (format *debug-io* ,(string+ format-specifier "~%") ,@args))
+                   #t)
+           (format *debug-io* "Error during formatting ~S~%" ,format-specifier)))))

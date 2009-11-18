@@ -220,10 +220,12 @@
 ;;; Serialize
 
 (def (function oe) serialize (object &key (output nil) (buffer-size 1024) (serializer-mapper #'default-serializer-mapper))
+  (log.debug "Serialization of ~A starts" object)
   (bind ((context (make-serializer-context :buffer (make-array buffer-size :element-type '(unsigned-byte 8))
                                            :mapper serializer-mapper)))
     (write-variable-length-positive-integer +version+ context)
     (serialize-element object context)
+    (log.debug "Serialization of ~A finished at ~A" object (sc-position context))
     (etypecase output
       (stream (write-sequence (sc-buffer context) output :end (sc-position context)))
       (null (aprog1
@@ -244,12 +246,15 @@
                    (code (aref buffer position)))
               (setf (logbitp +referenced-bit-marker-index+ code) 1)
               (setf (aref buffer position) code)
-              (format-log "~%Serializing reference at ~A to object ~S seen at ~A" (sc-position context) object position)
+              (log.debug "Serializing reference at ~A to object ~S first seen at ~A" (sc-position context) object position)
               (write-unsigned-byte-8 +reference-code+ context)
               (write-variable-length-positive-integer position context)
               (return-from serialize-element (values)))
-            (setf (gethash object identity-to-position-map) (sc-position context)))))
+            (progn
+              (log.debug "Registering identity of ~A (of type ~S) first seen at ~A" object (type-of object) (sc-position context))
+              (setf (gethash object identity-to-position-map) (sc-position context))))))
     (write-unsigned-byte-8 type-code context)
+    (log.debug "SERIALIZE-ELEMENT calling the writer function ~A" writer-function)
     (funcall writer-function object context)
     (values)))
 
@@ -257,6 +262,7 @@
 ;;; Deserialize
 
 (def (function oe) deserialize (input &key (deserializer-mapper #'default-deserializer-mapper))
+  (log.debug "Deserialization starts")
   (bind ((context (make-serializer-context
                    :mapper deserializer-mapper
                    :buffer (etypecase input
@@ -266,26 +272,30 @@
                               (read-stream-into-vector input))))))
     (unless (= +version+ (read-variable-length-positive-integer context))
       (error "Serializer version mismatch"))
-    (deserialize-element context)))
+    (prog1
+        (deserialize-element context)
+      (log.debug "Deserialization finished"))))
 
 (def (function o) deserialize-element (context)
   (check-type context serializer-context)
   (bind ((*deserialize-element-position* (sc-position context))
          (code-with-referenced-bit (read-unsigned-byte-8 context))
-         (referenced (logbitp +referenced-bit-marker-index+ code-with-referenced-bit))
+         (referenced? (logbitp +referenced-bit-marker-index+ code-with-referenced-bit))
          (code (logand code-with-referenced-bit +code-mask+)))
     (if (eq code +reference-code+)
         (bind ((position (read-variable-length-positive-integer context))
                (result (gethash position (position-to-identity-map context) :not-found)))
-          (format-log "~%Deserializing reference at ~A to object ~S at ~A" *deserialize-element-position* result position)
+          (log.debug "Deserializing reference at ~A to object ~S first seen at ~A" *deserialize-element-position* result position)
           (when (eq result :not-found)
             (error "Reference to ~A cannot be resolved, byte at that position is ~A"
                    position (aref (sc-buffer context) position)))
           result)
-        (funcall (funcall (sc-mapper context) code context) context referenced))))
+        (bind ((reader-function (funcall (sc-mapper context) code context)))
+          (log.debug "DESERIALIZE-ELEMENT calling the reader function ~A" reader-function)
+          (funcall reader-function context referenced?)))))
 
 (def (function io) announce-identity (object context)
-  (format-log "~%Storing referenced object ~A seen at ~A" object *deserialize-element-position*)
+  (log.debug "Registering identity of ~A (of type ~S) seen at ~A" object (type-of object) *deserialize-element-position*)
   (setf (gethash *deserialize-element-position* (position-to-identity-map context)) object)
   object)
 
@@ -565,12 +575,13 @@
     result))
 
 (def (function io) %read-array (dimensions adjustable context)
-  (bind ((element-type (deserialize-element context)))
-    (bind ((result (make-array dimensions :element-type element-type :adjustable adjustable)))
-      (announce-identity result context)
-      (loop
-        :for index :from 0 :below (array-total-size result)
-        :do (setf (row-major-aref result index) (deserialize-element context))))))
+  (bind ((element-type (deserialize-element context))
+         (result (make-array dimensions :element-type element-type :adjustable adjustable)))
+    (announce-identity result context)
+    (loop
+      :for index :from 0 :below (array-total-size result)
+      :do (setf (row-major-aref result index) (deserialize-element context)))
+    result))
 
 (def (function io) %write-array (object context)
   (serialize-element (array-element-type object) context)
