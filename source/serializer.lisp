@@ -207,11 +207,16 @@
                (closer-mop:standard-direct-slot-definition (local-return +standard-direct-slot-definition-code+ #t))
                (closer-mop:standard-effective-slot-definition (local-return +standard-effective-slot-definition-code+ #t))
                (structure-object (local-return +structure-object-code+ #t))
-               (standard-object (local-return +standard-object-code+ #t))))))))
+               (standard-object (values +standard-object-code+ #t #'write-object)
+                                ;; using this instead would disable the READ/WRITE-OBJECT-SLOTS generics: (local-return +standard-object-code+ #t)
+                                )))))))
 
 (def (function o) default-deserializer-mapper (code context)
   (declare (ignore context))
-  (the function (aref +readers+ code)))
+  (the function
+    (if (eql code +standard-object-code+) ; dropping this special case would disable the READ/WRITE-OBJECT-SLOTS generics
+        #'read-object
+        (aref +readers+ code))))
 
 (def (function io) unread-unsigned-byte-8 (context)
   (decf (sc-position context)))
@@ -627,14 +632,51 @@
       :do (setf (gethash (deserialize-element -context-) result) (deserialize-element -context-)))
     result))
 
-(def serializer-deserializer slot-object nil t
-  (write-slot-object-slots -object- -context- (closer-mop:class-slots (class-of -object-)))
-  (read-slot-object-slots -context-))
+;;;;;;
+;;; CLOS objects
+;;;
+;;; .../primitive versions of the functions are not customizable through a generic method
 
-(def (function o) write-slot-object-slots (object context slots)
+(def function write-object (object context)
+   (log.debug "WRITE-OBJECT of ~A at ~A" object (sc-position context))
+   (bind ((class (class-of object)))
+     (serialize-symbol (class-name class) context)
+     (write-object-slots class object context)))
+
+(def (generic e) write-object-slots (class object context)
+  (:documentation "When using the DEFAULT-SERIALIZER-MAPPER, the writing of the slots of STANDARD-OBJECT's go through this generic, so that users can customize it. If you override WRITE-OBJECT-SLOTS, then make sure you also override READ-OBJECT-SLOTS!")
+  (:method (class object context)
+    (debug-only (assert (eq class (class-of object))))
+    (log.debug "WRITE-OBJECT of ~A at ~A" object (sc-position context))
+    (write-object-slots/primitive object context)))
+
+(def function read-object (context &optional referenced?)
+  (bind ((class-name (deserialize-symbol context))
+         (class (find-class class-name))
+         (prototype (closer-mop:class-prototype class)))
+    (log.debug "READ-OBJECT on an instance of ~S seen at ~A" class-name *deserialize-element-position*)
+    (aprog1
+        (read-object-slots class prototype context :is-referenced referenced?)
+      (log.debug "READ-OBJECT returnes ~A, now at ~A" it (sc-position context)))))
+
+(def (generic e) read-object-slots (class prototype context &key is-referenced)
+  (:documentation "When using the DEFAULT-DESERIALIZER-MAPPER, the reading of STANDARD-OBJECT's go through this generic, so that users can customize it. The PROTOTYPE argument may only be used for dispatching (it's the CLASS-PROTOTYPE of the class)! See also WRITE-OBJECT-SLOTS.")
+  (:method (class prototype context &key &allow-other-keys)
+    (debug-only (assert (eq class (class-of prototype))))
+    (bind ((object (allocate-instance class)))
+      (log.debug "READ-OBJECT of an instance of class ~S at ~S, slots are at ~A" (class-name class) *deserialize-element-position* (sc-position context))
+      (announce-identity object context)
+      (read-object-slots/primitive object context)
+      object)))
+
+(def serializer-deserializer standard-class +standard-class-code+ standard-class
+  (write-symbol (class-name -object-) -context-)
+  (announce-identity (find-class (read-symbol -context-)) -context-))
+
+(def (function io) write-object-slots/primitive (object context &optional (slots (closer-mop:class-slots (class-of object))))
+  (check-type slots list)
+  (log.debug "WRITE-OBJECT-SLOTS/PRIMITIVE of ~A, slots: ~A, at ~A" object slots (sc-position context))
   (bind ((class (class-of object)))
-    (declare (type list slots))
-    (serialize-symbol (class-name class) context)
     (write-variable-length-positive-integer (length slots) context)
     (dolist (slot slots)
       (unless (eq (closer-mop:slot-definition-allocation slot) :class)
@@ -643,35 +685,40 @@
             (serialize-element (closer-mop:slot-value-using-class class object slot) context)
             (write-unsigned-byte-8 +unbound-slot-code+ context))))))
 
-(def (function o) read-slot-object-slots (context &optional make-instance)
+(def (function io) read-object-slots/primitive (object context)
+  (log.debug "READ-OBJECT-SLOTS/PRIMITIVE of ~A at ~A" object (sc-position context))
+  (loop
+    :repeat (the fixnum (read-variable-length-positive-integer context))
+    :for slot-name = (deserialize-symbol context)
+    :do (if (eq +unbound-slot-code+ (read-unsigned-byte-8 context))
+            (slot-makunbound object slot-name)
+            (setf (slot-value object slot-name)
+                  (progn
+                    (unread-unsigned-byte-8 context)
+                    (deserialize-element context)))))
+  (values))
+
+(def (function o) write-object/primitive (object context)
+  (log.debug "WRITE-OBJECT/PRIMITIVE of ~A at ~A" object (sc-position context))
+  (serialize-symbol (class-name (class-of object)) context)
+  (write-object-slots/primitive object context))
+
+(def (function o) read-object/primitive (context &key (allocator #'allocate-instance))
   (bind ((class-name (deserialize-symbol context))
-         (class (find-class class-name))
-         (object (if make-instance
-                     (make-instance class)
-                     (allocate-instance class))))
-    (announce-identity object context)
-    (loop
-      :repeat (the fixnum (read-variable-length-positive-integer context))
-      :for slot-name = (deserialize-symbol context)
-      :do (if (eq +unbound-slot-code+ (read-unsigned-byte-8 context))
-              (slot-makunbound object slot-name)
-              (setf (slot-value object slot-name)
-                    (progn
-                      (unread-unsigned-byte-8 context)
-                      (deserialize-element context)))))
-    object))
+         (class (find-class class-name)))
+    (log.debug "READ-OBJECT/PRIMITIVE of an instance of class ~S at ~A" class-name *deserialize-element-position*)
+    (bind ((object (funcall allocator class)))
+      (announce-identity object context)
+      (read-object-slots/primitive object context)
+      object)))
 
-(def serializer-deserializer structure-object +structure-object-code+ structure-object
-  (write-slot-object -object- -context-)
-  (read-slot-object -context-))
+(def serializer-deserializer structure-object/primitive +structure-object-code+ structure-object
+  (write-object/primitive -object- -context-)
+  (read-object/primitive -context-))
 
-(def serializer-deserializer standard-object +standard-object-code+ standard-object
-  (write-slot-object -object- -context-)
-  (read-slot-object -context-))
-
-(def serializer-deserializer standard-class +standard-class-code+ standard-class
-  (write-symbol (class-name -object-) -context-)
-  (announce-identity (find-class (read-symbol -context-)) -context-))
+(def serializer-deserializer standard-object/primitive +standard-object-code+ standard-object
+  (write-object/primitive -object- -context-)
+  (read-object/primitive -context-))
 
 (def serializer-deserializer closer-mop:standard-direct-slot-definition +standard-direct-slot-definition-code+ closer-mop:standard-direct-slot-definition
   (progn
@@ -682,7 +729,11 @@
 
 (def serializer-deserializer closer-mop:standard-effective-slot-definition +standard-effective-slot-definition-code+ closer-mop:standard-effective-slot-definition
   (progn
+    (log.debug "WRITE-STANDARD-EFFECTIVE-SLOT-DEFINITION of ~A" -object-)
     #*((:sbcl (write-symbol (class-name (slot-value -object- 'sb-pcl::%class)) -context-))
        (t (not-yet-implemented)))
     (write-symbol (closer-mop:slot-definition-name -object-) -context-))
-  (announce-identity (find-slot (read-symbol -context-) (read-symbol -context-)) -context-))
+  (bind ((class-name (read-symbol -context-))
+         (slot-name (read-symbol -context-)))
+    (log.debug "READ-STANDARD-EFFECTIVE-SLOT-DEFINITION of a slot called ~S of class ~S" slot-name class-name)
+    (announce-identity (find-slot class-name slot-name ) -context-)))
