@@ -21,4 +21,5 @@
   :components ((:module "source"
                 :components ((:file "package")
                              (:file "duplicates" :depends-on ("package"))
-                             (:file "serializer" :depends-on ("duplicates"))))))
+                             (:file "util" :depends-on ("duplicates"))
+                             (:file "serializer" :depends-on ("duplicates" "util"))))))
