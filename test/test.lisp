@@ -19,9 +19,33 @@
 
 (def suite* (test/serialize-deserialize :in test))
 
-(def special-variable *equal-hash-table*)
+(def special-variable *object-equal-p/identity-counter*)
+(def special-variable *object-equal-p/seen-1*)
+(def special-variable *object-equal-p/seen-2*)
 
 (def generic object-equal-p (object-1 object-2)
+  (:method :around (object-1 object-2)
+    (or (eq object-1 object-2)
+        ;; TODO simply (call-next-method) here instead of the logic below breaks sbcl pretty easily. the stack overflow at the circularity tests...
+        (flet ((body ()
+                 (bind ((id-1 (gethash object-1 *object-equal-p/seen-1*))
+                        (id-2 (gethash object-2 *object-equal-p/seen-2*)))
+                   ;; if both have been seen and both have the same id, then this is a match
+                   (or (and id-1
+                            (eql id-1 id-2))
+                       (progn
+                         (unless id-1
+                           (setf (gethash object-1 *object-equal-p/seen-1*) *object-equal-p/identity-counter*)
+                           (setf (gethash object-2 *object-equal-p/seen-2*) *object-equal-p/identity-counter*)
+                           (incf *object-equal-p/identity-counter*))
+                         (call-next-method))))))
+          (if (boundp '*object-equal-p/identity-counter*)
+              (body)
+              (bind ((*object-equal-p/identity-counter* 0)
+                     (*object-equal-p/seen-1* (make-hash-table :test 'eq))
+                     (*object-equal-p/seen-2* (make-hash-table :test 'eq)))
+                (body))))))
+
   (:method (object-1 object-2)
     (equalp object-1 object-2))
 
@@ -62,28 +86,26 @@
            #t)))
 
   (:method ((object-1 structure-object) (object-2 structure-object))
-    (or (eq object-1 object-2)
-        (let ((class-1 (class-of object-1))
-              (class-2 (class-of object-2)))
-          (and (eq class-1 class-2)
-               (every (lambda (slot)
-                        (object-equal-p
-                         (slot-value-using-class class-1 object-1 slot)
-                         (slot-value-using-class class-2 object-2 slot)))
-                      (class-slots class-1))))))
+    (let ((class-1 (class-of object-1))
+          (class-2 (class-of object-2)))
+      (and (eq class-1 class-2)
+           (every (lambda (slot)
+                    (object-equal-p
+                     (slot-value-using-class class-1 object-1 slot)
+                     (slot-value-using-class class-2 object-2 slot)))
+                  (class-slots class-1)))))
 
   (:method ((object-1 standard-object) (object-2 standard-object))
-    (or (eq object-1 object-2)
-        (let ((class-1 (class-of object-1))
-              (class-2 (class-of object-2)))
-          (and (eq class-1 class-2)
-               (every (lambda (slot)
-                        (or (and (not (slot-boundp-using-class class-1 object-1 slot))
-                                 (not (slot-boundp-using-class class-2 object-2 slot)))
-                            (object-equal-p
-                             (slot-value-using-class class-1 object-1 slot)
-                             (slot-value-using-class class-2 object-2 slot))))
-                      (class-slots class-1)))))))
+    (let ((class-1 (class-of object-1))
+          (class-2 (class-of object-2)))
+      (and (eq class-1 class-2)
+           (every (lambda (slot)
+                    (or (and (not (slot-boundp-using-class class-1 object-1 slot))
+                             (not (slot-boundp-using-class class-2 object-2 slot)))
+                        (object-equal-p
+                         (slot-value-using-class class-1 object-1 slot)
+                         (slot-value-using-class class-2 object-2 slot))))
+                  (class-slots class-1))))))
 
 (def definer serialize-deserialize-test (name value)
   (with-unique-names (value-tmp)
