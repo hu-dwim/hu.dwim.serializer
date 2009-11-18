@@ -123,11 +123,11 @@
 ;;;;;;
 ;;; Code -> lambda
 
-(declaim (type (simple-vector 128) +serializers+ +deserializers+))
+(declaim (type (simple-vector 128) +writers+ +readers+))
 
-(def load-time-constant +serializers+ (make-array 128))
+(def load-time-constant +writers+ (make-array 128))
 
-(def load-time-constant +deserializers+ (make-array 128))
+(def load-time-constant +readers+ (make-array 128))
 
 ;;;;;;
 ;;; Context
@@ -175,7 +175,7 @@
   (declare (ignore context))
   (the (values fixnum boolean function)
     (flet ((local-return (code identity)
-             (values code identity (the function (aref +serializers+ code)))))
+             (values code identity (the function (aref +writers+ code)))))
       (cond ((eq object nil)
              (local-return +nil-code+ #f))
             ((eq object t)
@@ -211,7 +211,7 @@
 
 (def (function o) default-deserializer-mapper (code context)
   (declare (ignore context))
-  (the function (aref +deserializers+ code)))
+  (the function (aref +readers+ code)))
 
 (def (function io) unread-unsigned-byte-8 (context)
   (decf (sc-position context)))
@@ -317,8 +317,8 @@
                   (check-type context serializer-context)
                   (the ,type
                     (values (deserialize-element context))))
-                (setf (aref +serializers+ ,code) #',writer-name)
-                (setf (aref +deserializers+ ,code) #',reader-name))))))
+                (setf (aref +writers+ ,code) #',writer-name)
+                (setf (aref +readers+ ,code) #',reader-name))))))
 
 (def serializer-deserializer nil +nil-code+ null
   nil
