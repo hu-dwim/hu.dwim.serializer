@@ -86,8 +86,10 @@
                       (class-slots class-1)))))))
 
 (def definer serialize-deserialize-test (name value)
-  `(def test ,(format-symbol *package* "TEST/SERIALIZE-DESERIALIZE/~A" name) ()
-    (is (object-equal-p ,value (deserialize (serialize ,value))))))
+  (with-unique-names (value-tmp)
+    `(def test ,(format-symbol *package* "TEST/SERIALIZE-DESERIALIZE/~A" name) ()
+       (bind ((,value-tmp ,value))
+         (is (object-equal-p ,value-tmp (deserialize (serialize ,value-tmp))))))))
 
 (def serialize-deserialize-test nil nil)
 
