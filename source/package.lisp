@@ -4,9 +4,9 @@
 ;;;
 ;;; See LICENCE for details.
 
-(in-package :common-lisp-user)
+(in-package :hu.dwim.util)
 
-(hu.dwim.def:def package :hu.dwim.serializer
+(def package :hu.dwim.serializer
   (:use :babel
         :hu.dwim.asdf
         :hu.dwim.common
@@ -14,6 +14,4 @@
         :hu.dwim.util)
   (:shadow #:read-string
            #:write-string)
-  (:readtable-setup
-   (hu.dwim.syntax-sugar:enable-sharp-boolean-syntax)
-   (hu.dwim.syntax-sugar:enable-feature-cond-syntax)))
+  (:readtable-setup (enable-standard-hu.dwim-syntaxes)))

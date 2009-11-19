@@ -15,7 +15,7 @@
   :description "Generic serializer and deserializer"
   :depends-on (:babel
                :hu.dwim.common
-               :hu.dwim.def+hu.dwim.common
+               :hu.dwim.def
                :hu.dwim.syntax-sugar
                :hu.dwim.util.mop)
   :components ((:module "source"

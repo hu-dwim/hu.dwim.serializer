@@ -11,9 +11,8 @@
 (defsystem :hu.dwim.serializer.test
   :class hu.dwim.test-system
   :description "Test suite for hu.dwim.serializer"
-  :depends-on (:hu.dwim.def+hu.dwim.stefil
-               :hu.dwim.def+swank
-               :hu.dwim.serializer)
+  :depends-on (:hu.dwim.serializer
+               :hu.dwim.util.test)
   :components ((:module "test"
                 :components ((:file "package")
                              (:file "suite" :depends-on ("package"))
