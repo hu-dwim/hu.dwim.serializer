@@ -6,7 +6,4 @@
 
 (in-package :hu.dwim.serializer.test)
 
-(def function setup-readtable ()
-  (enable-sharp-boolean-syntax))
-
 (def suite* (test :in root-suite))
