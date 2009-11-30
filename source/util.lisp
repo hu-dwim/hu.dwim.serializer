@@ -36,7 +36,7 @@
           ((and (eq fast slow) (> n 0))
            (return (values :circular-list 0))))))
 
-(def special-variable *debug-log-enabled* (not *load-as-production?*))
+(def special-variable *debug-log-enabled* #f)
 
 (def macro log.debug (format-specifier &rest args)
   (declare (ignorable format-specifier args))
