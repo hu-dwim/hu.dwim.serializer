@@ -10,9 +10,9 @@
 
 (defsystem :hu.dwim.serializer
   :class hu.dwim.system
-  :author ("Levente Mészáros <levente.meszaros@gmail.com>")
-  :licence "BSD / Public domain"
-  :description "Generic serializer and deserializer"
+  :author ("Attila Lendvai <attila.lendvai@gmail.com>"
+           "Levente Mészáros <levente.meszaros@gmail.com>")
+  :description "Generic serializer and deserializer."
   :depends-on (:babel
                :hu.dwim.common
                :hu.dwim.def
