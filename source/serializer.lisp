@@ -683,7 +683,7 @@
   (bind ((class (class-of object)))
     (write-variable-length-positive-integer (length slots) context)
     (dolist (slot slots)
-      (unless (eq (closer-mop:slot-definition-allocation slot) :class)
+      (unless (eq (ignore-errors (closer-mop:slot-definition-allocation slot)) :class) ;; TODO THL rewrite nicely (not defined/portable for structures)
         (serialize-symbol (closer-mop:slot-definition-name slot) context)
         (if (closer-mop:slot-boundp-using-class class object slot)
             (serialize-element (closer-mop:slot-value-using-class class object slot) context)
