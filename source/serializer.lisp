@@ -239,23 +239,6 @@
                 (make-array (sc-position context) :element-type '(unsigned-byte 8))
               (replace it (sc-buffer context)))))))
 
-#+allegro ;; no (setf logbitp) in allegro so this one is from sbcl
-(define-setf-expander logbitp (index int &environment env)
-  (multiple-value-bind (temps vals stores store-form access-form)
-      (get-setf-expansion int env)
-    (let ((ind (gensym))
-          (store (gensym))
-          (stemp (first stores)))
-      (values `(,ind ,@temps)
-              `(,index
-                ,@vals)
-              (list store)
-              `(let ((,stemp
-                      (dpb (if ,store 1 0) (byte 1 ,ind) ,access-form)))
-                 ,store-form
-                 ,store)
-              `(logbitp ,ind ,access-form)))))
-
 (def (function o) serialize-element (object context)
   (declare (type serializer-context context))
   (bind (((:values type-code has-identity writer-function) (funcall (sc-mapper context) object context)))
