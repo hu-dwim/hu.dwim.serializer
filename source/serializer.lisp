@@ -212,7 +212,7 @@
                (closer-mop:standard-effective-slot-definition (local-return +standard-effective-slot-definition-code+ #t))
                (structure-object (local-return +structure-object-code+ #t))
                (standard-object (values +standard-object-code+ #t #'write-object)
-                                ;; using this instead would disable the READ/WRITE-OBJECT-SLOTS generics: (local-return +standard-object-code+ #t)
+                                ;; inserting the following here would disable the READ/WRITE-OBJECT-SLOTS generics: (local-return +standard-object-code+ #t)
                                 )))))))
 
 (def (function o) default-deserializer-mapper (code context)
