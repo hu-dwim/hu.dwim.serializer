@@ -191,11 +191,13 @@
                (rational (local-return +rational-code+ #f))
                (float (local-return +float-code+ #f))
                (complex (local-return +complex-code+ #f))
-               #-allegro ;; we want utf handling on allegro
-               (base-char (local-return +base-char-code+ #f))
+               #.(if (subtypep 'character 'base-char)
+                     (values)
+                     `(base-char (local-return +base-char-code+ #f)))
                (character (local-return +character-code+ #f))
-               #-allegro ;; we want utf handling on allegro
-               (simple-base-string (local-return +simple-base-string-code+ #t))
+               #.(if (subtypep 'string 'base-string)
+                     (values)
+                     `(simple-base-string (local-return +simple-base-string-code+ #t)))
                (simple-string (local-return +simple-string-code+ #t))
                (string (local-return +string-code+ #t))
                (package (local-return +package-code+ #t))
