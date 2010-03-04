@@ -28,7 +28,7 @@
                  (prog1-bind result-buffer (make-array buffer-pointer :element-type '(unsigned-byte 8))
                    (replace result-buffer buffer :end2 buffer-pointer))))))
 
-#+allegro ;; no (setf logbitp) in allegro so this one is from sbcl
+#+(or allegro clozure) ;; from sbcl
 (define-setf-expander logbitp (index int &environment env)
   (multiple-value-bind (temps vals stores store-form access-form)
       (get-setf-expansion int env)
