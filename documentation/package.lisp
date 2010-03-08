@@ -4,9 +4,9 @@
 ;;;
 ;;; See LICENCE for details.
 
-(in-package :common-lisp-user)
+(in-package :hu.dwim.def)
 
-(defpackage :hu.dwim.serializer.documentation
+(def package :hu.dwim.serializer.documentation
   (:use :hu.dwim.asdf
         :hu.dwim.common
         :hu.dwim.def
@@ -14,4 +14,5 @@
         :hu.dwim.serializer
         :hu.dwim.syntax-sugar
         :hu.dwim.util
-        :hu.dwim.wui))
+        :hu.dwim.wui)
+  (:readtable-setup (setup-readtable/same-as-package :hu.dwim.wui)))
