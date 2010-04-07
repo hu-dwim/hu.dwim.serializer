@@ -4,7 +4,7 @@
 ;;;
 ;;; See LICENCE for details.
 
-(in-package :hu.dwim.util)
+(in-package :hu.dwim.def)
 
 (def package :hu.dwim.serializer
   (:use :babel
@@ -14,4 +14,4 @@
         :hu.dwim.util)
   (:shadow #:read-string
            #:write-string)
-  (:readtable-setup (enable-standard-hu.dwim-syntaxes)))
+  (:readtable-setup (hu.dwim.util:enable-standard-hu.dwim-syntaxes)))
