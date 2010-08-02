@@ -6,7 +6,7 @@
 
 (in-package :hu.dwim.serializer.documentation)
 
-(def project :hu.dwim.serializer :path (system-pathname :hu.dwim.serializer))
+(def project :hu.dwim.serializer)
 
 (def book user-guide (:title "User guide")
   (chapter (:title "Introduction")
