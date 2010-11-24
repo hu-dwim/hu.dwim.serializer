@@ -17,6 +17,7 @@
                :hu.dwim.common
                :hu.dwim.def
                :hu.dwim.syntax-sugar
+               :hu.dwim.util
                :hu.dwim.util.mop)
   :components ((:module "source"
                 :components ((:file "package")
