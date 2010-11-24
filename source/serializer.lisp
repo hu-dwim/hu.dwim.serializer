@@ -253,7 +253,7 @@
         (if position
             (bind ((buffer (sc-buffer context))
                    (code (aref buffer position)))
-              (setf (logbitp +referenced-bit-marker-index+ code) 1)
+              (setf (bit-value +referenced-bit-marker-index+ code) #t)
               (setf (aref buffer position) code)
               (log.debug "Serializing reference at ~A to object ~S first seen at ~A" (sc-position context) object position)
               (write-unsigned-byte-8 +reference-code+ context)
@@ -289,7 +289,7 @@
   (check-type context serializer-context)
   (bind ((*deserialize-element-position* (sc-position context))
          (code-with-referenced-bit (read-unsigned-byte-8 context))
-         (referenced? (logbitp +referenced-bit-marker-index+ code-with-referenced-bit))
+         (referenced? (bit-value +referenced-bit-marker-index+ code-with-referenced-bit))
          (code (logand code-with-referenced-bit +code-mask+)))
     (if (eq code +reference-code+)
         (bind ((position (read-variable-length-positive-integer context))
@@ -380,19 +380,19 @@
          (length (ceiling (integer-length (abs integer)) 8))
          (length-with-sign-bit length))
     (when negative
-      (setf (logbitp +integer-length-sign-bit-index+ length-with-sign-bit) 1))
+      (setf (bit-value +integer-length-sign-bit-index+ length-with-sign-bit) #t))
     (write-unsigned-byte-8 length-with-sign-bit -context-)
     (loop
       :for index :from (- (* 8 length) 8) :downto 0 :by 8
       :do (write-unsigned-byte-8 (ldb (byte 8 index) integer) -context-)))
   (bind ((first-byte (read-unsigned-byte-8 -context-))
-         (negative (logbitp +integer-length-sign-bit-index+ first-byte))
+         (negative? (bit-value +integer-length-sign-bit-index+ first-byte))
          (length (* 8 (logand first-byte +integer-length-mask+))))
     (bind ((result 0))
       (loop
         :for index :from (- length 8) :downto 0 :by 8
         :do (setf (ldb (byte 8 index) result) (read-unsigned-byte-8 -context-)))
-      (if negative
+      (if negative?
           (lognot result)
           result))))
 
@@ -404,7 +404,7 @@
       (write-unsigned-byte-8 -object- -context-)
       (write-integer (- -object-) -context-))
   (bind ((first-byte (read-unsigned-byte-8 -context-)))
-    (if (logbitp +integer-length-sign-bit-index+ first-byte)
+    (if (bit-value +integer-length-sign-bit-index+ first-byte)
         (progn
           (unread-unsigned-byte-8 -context-)
           (- (the fixnum (read-integer -context-))))
