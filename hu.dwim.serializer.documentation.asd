@@ -11,7 +11,7 @@
 (defsystem :hu.dwim.serializer.documentation
   :class hu.dwim.documentation-system
   :depends-on (:hu.dwim.serializer.test
-               :hu.dwim.wui)
+               :hu.dwim.presentation)
   :components ((:module "documentation"
                 :components ((:file "package")
                              (:file "serializer" :depends-on ("package"))))))
