@@ -199,6 +199,7 @@
                     `((simple-base-string (local-return +simple-base-string-code+ #t))))
                 (simple-string (local-return +simple-string-code+ #t))
                 (string (local-return +string-code+ #t))
+                (pathname (local-return +pathname-code+ #t))
                 (package (local-return +package-code+ #t))
                 (simple-unsigned-byte-8-vector (local-return +simple-unsigned-byte-8-vector-code+ #t))
                 (simple-vector (local-return +simple-vector-code+ #t))
@@ -515,6 +516,10 @@
      (read-simple-string -context-))
     (#.+string-code+
      (read-string -context-))))
+
+(def serializer-deserializer pathname +pathname-code+ pathname
+  (write-simple-string (namestring -object-) -context-)
+  (pathname (read-simple-string -context-)))
 
 (def serializer-deserializer keyword +keyword-code+ keyword
   (write-generic-string (symbol-name -object-) -context-)
