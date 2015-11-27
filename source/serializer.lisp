@@ -661,7 +661,7 @@
 (def function read-object (context &optional referenced?)
   (bind ((class-name (deserialize-symbol context))
          (class (find-class class-name))
-         (prototype (closer-mop:class-prototype class)))
+         (prototype (closer-mop:class-prototype (ensure-finalized class))))
     (log.debug "READ-OBJECT on an instance of ~S seen at ~A" class-name *deserialize-element-position*)
     (aprog1
         (read-object-slots class prototype context :is-referenced referenced?)
