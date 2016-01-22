@@ -377,20 +377,21 @@
          (integer (if negative
                       (lognot -object-)
                       -object-))
-         (length (ceiling (integer-length (abs integer)) 8))
-         (length-with-sign-bit length))
-    (when negative
-      (setf (bit-value +integer-length-sign-bit-index+ length-with-sign-bit) #t))
-    (write-unsigned-byte-8 length-with-sign-bit -context-)
+         (bit-length (integer-length (abs integer)))
+         (byte-length (ceiling bit-length 8)))
+    (bind ((byte-length-with-sign-bit byte-length))
+      (when negative
+        (setf (bit-value +integer-length-sign-bit-index+ byte-length-with-sign-bit) #t))
+      (write-unsigned-byte-8 byte-length-with-sign-bit -context-))
     (loop
-      :for index :from (- (* 8 length) 8) :downto 0 :by 8
+      :for index :from (* 8 (1- byte-length)) :downto 0 :by 8
       :do (write-unsigned-byte-8 (ldb (byte 8 index) integer) -context-)))
   (bind ((first-byte (read-unsigned-byte-8 -context-))
          (negative? (bit-value +integer-length-sign-bit-index+ first-byte))
-         (length (* 8 (logand first-byte +integer-length-mask+))))
+         (bit-length (* 8 (logand first-byte +integer-length-mask+))))
     (bind ((result 0))
       (loop
-        :for index :from (- length 8) :downto 0 :by 8
+        :for index :from (- bit-length 8) :downto 0 :by 8
         :do (setf (ldb (byte 8 index) result) (read-unsigned-byte-8 -context-)))
       (if negative?
           (lognot result)
@@ -429,6 +430,8 @@
 
 (def serializer-deserializer complex +complex-code+ complex
   (progn
+    ;; TODO FIXME bugous assumption, the parts may not be floats.
+    ;; "The real part and imaginary part are either both rational or both of the same float type."
     (write-float (realpart -object-) -context-)
     (write-float (imagpart -object-) -context-))
   (complex (read-float -context-) (read-float -context-)))
@@ -613,7 +616,7 @@
     (serialize-element (array-dimensions -object-) -context-)
     (%write-array -object- -context-))
   (%read-array (deserialize-element -context-) #f -context-))
-  
+
 (def serializer-deserializer vector +vector-code+ vector
   (progn
     (write-variable-length-positive-integer (length -object-) -context-)
