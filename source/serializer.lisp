@@ -379,6 +379,8 @@
                       -object-))
          (bit-length (integer-length (abs integer)))
          (byte-length (ceiling bit-length 8)))
+    (unless (<= byte-length (1- (expt 2 +integer-length-sign-bit-index+)))
+      (not-yet-implemented "Serializing integers, that are (>= i (expt 2 (* 127 8))), is not supported yet."))
     (bind ((byte-length-with-sign-bit byte-length))
       (when negative
         (setf (bit-value +integer-length-sign-bit-index+ byte-length-with-sign-bit) #t))
