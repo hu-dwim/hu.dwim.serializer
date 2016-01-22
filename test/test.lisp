@@ -107,11 +107,12 @@
                          (slot-value-using-class class-2 object-2 slot))))
                   (class-slots class-1))))))
 
-(def definer serialize-deserialize-test (name value)
+(def definer serialize-deserialize-test (name value &key (with-expected-failures nil))
   (with-unique-names (value-tmp)
     `(def test ,(format-symbol *package* "TEST/SERIALIZE-DESERIALIZE/~A" name) ()
        (bind ((,value-tmp ,value))
-         (is (object-equal-p ,value-tmp (deserialize (serialize ,value-tmp))))))))
+         (with-expected-failures* ,with-expected-failures
+           (is (object-equal-p ,value-tmp (deserialize (serialize ,value-tmp)))))))))
 
 (def serialize-deserialize-test nil nil)
 
@@ -131,6 +132,14 @@
 (def serialize-deserialize-test integer/7 -257)
 (def serialize-deserialize-test integer/8 1234567890123456789012345678901234567890)
 (def serialize-deserialize-test integer/9 -1234567890123456789012345678901234567890)
+(def serialize-deserialize-test integer/10 (expt 2 (1- (* 127 8))))
+(def serialize-deserialize-test integer/11 (- (expt 2 (* 127 8))))
+(def serialize-deserialize-test integer/12 (expt 2 (* 127 8)) :with-expected-failures t)
+(def serialize-deserialize-test integer/13 (- (expt 2 (* 128 8))) :with-expected-failures t)
+(def serialize-deserialize-test integer/14 (expt 2 (* 300 8)) :with-expected-failures t)
+(def serialize-deserialize-test integer/15 (- (expt 2 (* 300 8))) :with-expected-failures t)
+(def serialize-deserialize-test integer/16 (expt 2 (* 3000 8)) :with-expected-failures t)
+(def serialize-deserialize-test integer/17 (- (expt 2 (* 3000 8))) :with-expected-failures t)
 
 (def serialize-deserialize-test float/1 0.0)
 (def serialize-deserialize-test float/2 1.1)
@@ -144,6 +153,7 @@
 (def serialize-deserialize-test rational/4 -1234567890/9876543210)
 
 (def serialize-deserialize-test complex/1 (complex 1.5d0 -0.33d0))
+(def serialize-deserialize-test complex/2 (complex 2 3) :with-expected-failures t)
 
 (def serialize-deserialize-test character/1 #\a)
 
